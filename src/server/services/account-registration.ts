@@ -1,8 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { creditPolicy } from "@/domain/credits";
 import { Argon2PasswordHasher } from "@/server/auth/password-hasher";
 import { AccountRepository } from "@/server/repositories/account-repository";
 import { inMemoryStore } from "@/server/store/in-memory-store";
@@ -14,7 +12,8 @@ import type {
 import type { PasswordHasher } from "@/server/auth/password-hasher";
 import {
   DuplicateNormalizedEmailError,
-  RuntimeUnitOfWork,
+  runtimeUnitOfWork,
+  type RuntimeUnitOfWork,
 } from "@/server/services/runtime-unit-of-work";
 
 const displayNameSchema = z
@@ -172,16 +171,9 @@ export class DefaultAccountRegistrationService
 }
 
 const productionAccountRepository = new AccountRepository(inMemoryStore);
-const productionUnitOfWork = new RuntimeUnitOfWork({
-  store: inMemoryStore,
-  creditPolicy,
-  generateId: randomUUID,
-  now: () => new Date(),
-});
-
 export const accountRegistrationService =
   new DefaultAccountRegistrationService({
     accountRepository: productionAccountRepository,
     passwordHasher: new Argon2PasswordHasher(),
-    unitOfWork: productionUnitOfWork,
+    unitOfWork: runtimeUnitOfWork,
   });

@@ -1,13 +1,19 @@
 import "server-only";
 
 import type { Account, CreditTransaction } from "@/domain/account";
-import { STARTING_CREDIT_REASON } from "@/domain/credits";
+import {
+  DICE_ROUND_CREDIT_REASON,
+  STARTING_CREDIT_REASON,
+} from "@/domain/credits";
+import type { GameRound } from "@/domain/dice";
 import type { SessionRecord } from "@/server/auth/authentication.contract";
 
 interface StoreState {
   readonly accountsById: ReadonlyMap<string, Account>;
   readonly accountIdByNormalizedEmail: ReadonlyMap<string, string>;
   readonly creditTransactionsById: ReadonlyMap<string, CreditTransaction>;
+  readonly gameRoundsById: ReadonlyMap<string, GameRound>;
+  readonly gameRoundIdByRequest: ReadonlyMap<string, string>;
   readonly sessionsById: ReadonlyMap<string, SessionRecord>;
   readonly sessionIdByTokenHash: ReadonlyMap<string, string>;
 }
@@ -19,11 +25,25 @@ export interface AccountWithStartingCreditWrite {
 
 export type AccountCommitResult = "created" | "duplicate-email";
 
+export interface DiceRoundWrite {
+  readonly expectedBalance: number;
+  readonly round: GameRound;
+  readonly transaction: CreditTransaction;
+}
+
+export type DiceRoundCommitResult =
+  | { readonly status: "created"; readonly round: GameRound }
+  | { readonly status: "replayed"; readonly round: GameRound }
+  | { readonly status: "conflict" }
+  | { readonly status: "balance-changed" };
+
 function createEmptyState(): StoreState {
   return {
     accountsById: new Map(),
     accountIdByNormalizedEmail: new Map(),
     creditTransactionsById: new Map(),
+    gameRoundsById: new Map(),
+    gameRoundIdByRequest: new Map(),
     sessionsById: new Map(),
     sessionIdByTokenHash: new Map(),
   };
@@ -39,6 +59,14 @@ function copyTransaction(transaction: CreditTransaction): CreditTransaction {
 
 function copySession(session: SessionRecord): SessionRecord {
   return { ...session };
+}
+
+function copyGameRound(round: GameRound): GameRound {
+  return { ...round };
+}
+
+function requestKey(accountId: string, requestId: string): string {
+  return JSON.stringify([accountId, requestId]);
 }
 
 export class InMemoryStore {
@@ -68,6 +96,24 @@ export class InMemoryStore {
       this.#state.creditTransactionsById.values(),
       copyTransaction,
     );
+  }
+
+  listGameRounds(): readonly GameRound[] {
+    return Array.from(this.#state.gameRoundsById.values(), copyGameRound);
+  }
+
+  findGameRoundByRequest(
+    accountId: string,
+    requestId: string,
+  ): GameRound | null {
+    const roundId = this.#state.gameRoundIdByRequest.get(
+      requestKey(accountId, requestId),
+    );
+    const round = roundId
+      ? this.#state.gameRoundsById.get(roundId)
+      : undefined;
+
+    return round ? copyGameRound(round) : null;
   }
 
   findSessionByTokenHash(tokenHash: string): SessionRecord | null {
@@ -155,6 +201,7 @@ export class InMemoryStore {
 
     if (
       transaction.accountId !== account.id ||
+      transaction.roundId !== null ||
       transaction.reason !== STARTING_CREDIT_REASON ||
       transaction.delta !== account.credits ||
       transaction.resultingBalance !== account.credits ||
@@ -183,11 +230,102 @@ export class InMemoryStore {
       accountsById,
       accountIdByNormalizedEmail,
       creditTransactionsById,
+      gameRoundsById: this.#state.gameRoundsById,
+      gameRoundIdByRequest: this.#state.gameRoundIdByRequest,
       sessionsById: this.#state.sessionsById,
       sessionIdByTokenHash: this.#state.sessionIdByTokenHash,
     };
 
     return "created";
+  }
+
+  commitDiceRound(write: DiceRoundWrite): DiceRoundCommitResult {
+    const { expectedBalance, round, transaction } = write;
+    const idempotencyKey = requestKey(round.accountId, round.requestId);
+    const existingRoundId = this.#state.gameRoundIdByRequest.get(
+      idempotencyKey,
+    );
+
+    if (existingRoundId) {
+      const existingRound = this.#state.gameRoundsById.get(existingRoundId);
+
+      if (!existingRound) {
+        throw new Error("Dice idempotency index invariant failed");
+      }
+
+      return existingRound.bet === round.bet &&
+        existingRound.prediction === round.prediction
+        ? { status: "replayed", round: copyGameRound(existingRound) }
+        : { status: "conflict" };
+    }
+
+    const account = this.#state.accountsById.get(round.accountId);
+
+    if (!account) {
+      throw new Error("Dice account invariant failed");
+    }
+
+    if (account.credits !== expectedBalance) {
+      return { status: "balance-changed" };
+    }
+
+    if (
+      this.#state.gameRoundsById.has(round.id) ||
+      this.#state.creditTransactionsById.has(transaction.id)
+    ) {
+      throw new Error("Generated Dice identifier collision");
+    }
+
+    const calculatedBalance = expectedBalance + transaction.delta;
+
+    if (
+      round.game !== "DICE" ||
+      transaction.reason !== DICE_ROUND_CREDIT_REASON ||
+      transaction.accountId !== account.id ||
+      transaction.accountId !== round.accountId ||
+      transaction.roundId !== round.id ||
+      round.transactionId !== transaction.id ||
+      round.netDelta !== transaction.delta ||
+      round.finalCredits !== transaction.resultingBalance ||
+      round.finalCredits !== calculatedBalance ||
+      round.createdAt !== transaction.createdAt ||
+      !Number.isSafeInteger(expectedBalance) ||
+      !Number.isSafeInteger(transaction.delta) ||
+      !Number.isSafeInteger(calculatedBalance) ||
+      calculatedBalance < 0
+    ) {
+      throw new Error("Dice settlement invariant failed");
+    }
+
+    const accountsById = new Map(this.#state.accountsById);
+    const creditTransactionsById = new Map(
+      this.#state.creditTransactionsById,
+    );
+    const gameRoundsById = new Map(this.#state.gameRoundsById);
+    const gameRoundIdByRequest = new Map(
+      this.#state.gameRoundIdByRequest,
+    );
+
+    accountsById.set(account.id, {
+      ...account,
+      credits: calculatedBalance,
+    });
+    creditTransactionsById.set(
+      transaction.id,
+      copyTransaction(transaction),
+    );
+    gameRoundsById.set(round.id, copyGameRound(round));
+    gameRoundIdByRequest.set(idempotencyKey, round.id);
+
+    this.#state = {
+      ...this.#state,
+      accountsById,
+      creditTransactionsById,
+      gameRoundsById,
+      gameRoundIdByRequest,
+    };
+
+    return { status: "created", round: copyGameRound(round) };
   }
 }
 

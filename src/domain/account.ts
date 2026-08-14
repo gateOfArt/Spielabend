@@ -1,4 +1,4 @@
-import type { StartingCreditReason } from "@/domain/credits";
+import type { CreditTransactionReason } from "@/domain/credits";
 
 export interface Account {
   readonly id: string;
@@ -12,8 +12,9 @@ export interface Account {
 export interface CreditTransaction {
   readonly id: string;
   readonly accountId: string;
+  readonly roundId: string | null;
   readonly delta: number;
-  readonly reason: StartingCreditReason;
+  readonly reason: CreditTransactionReason;
   readonly resultingBalance: number;
   readonly createdAt: string;
 }

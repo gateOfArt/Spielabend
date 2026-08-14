@@ -1,79 +1,58 @@
 import { describe, expect, it } from "vitest";
+import type { CreditTransaction } from "@/domain/account";
+import {
+  creditPolicy,
+  type CreditPolicy,
+} from "@/domain/credits";
+import type { GameRound } from "@/domain/dice";
+import { AccountRepository } from "@/server/repositories/account-repository";
+import { CreditTransactionRepository } from "@/server/repositories/credit-transaction-repository";
 import {
   DICE_RULE,
   type DiceRoundErrorCode,
   type DiceRoundResult,
   type DiceRoundService,
-  type RandomSource,
 } from "@/server/services/dice-round.contract";
+import { DefaultDiceRoundService } from "@/server/services/dice-round";
+import { RuntimeUnitOfWork } from "@/server/services/runtime-unit-of-work";
+import {
+  InMemoryStore,
+  type DiceRoundCommitResult,
+  type DiceRoundWrite,
+} from "@/server/store/in-memory-store";
 
-const ACCOUNT_ID = "account-1";
 const VALID_SESSION_TOKEN = "valid-session-token";
 const VALID_REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const SECOND_REQUEST_ID = "22222222-2222-4222-8222-222222222222";
 const STARTING_BALANCE = 100;
 
-interface AccountProbe {
-  readonly id: string;
-  readonly credits: number;
-}
-
-interface DiceRoundProbe {
-  readonly id: string;
-  readonly accountId: string;
-  readonly transactionId: string;
-  readonly requestId: string;
-  readonly bet: number;
-  readonly prediction: number;
-  readonly result: number;
-  readonly outcome: "win" | "loss";
-  readonly netDelta: number;
-  readonly finalCredits: number;
-}
-
-interface DiceTransactionProbe {
-  readonly id: string;
-  readonly accountId: string;
-  readonly roundId: string;
-  readonly delta: number;
-  readonly reason: typeof DICE_RULE.transactionReason;
-  readonly resultingBalance: number;
-}
-
 interface DiceStateProbe {
-  readonly account: AccountProbe;
-  readonly rounds: readonly DiceRoundProbe[];
-  readonly transactions: readonly DiceTransactionProbe[];
+  readonly credits: number;
+  readonly rounds: readonly GameRound[];
+  readonly transactions: readonly CreditTransaction[];
 }
 
 interface DiceTestSubject {
   readonly service: DiceRoundService;
   failNextAtomicWrite(): void;
   inspectState(): DiceStateProbe;
+  randomRollCount(): number;
 }
 
-class NotImplementedDiceRoundService implements DiceRoundService {
-  constructor(private readonly randomSource: RandomSource) {
-    void this.randomSource;
+class DiceTestStore extends InMemoryStore {
+  private shouldFailDiceCommit = false;
+
+  failNextDiceCommit() {
+    this.shouldFailDiceCommit = true;
   }
 
-  play(sessionToken: unknown, input: unknown): Promise<DiceRoundResult> {
-    void sessionToken;
-    void input;
+  override commitDiceRound(write: DiceRoundWrite): DiceRoundCommitResult {
+    if (this.shouldFailDiceCommit) {
+      this.shouldFailDiceCommit = false;
+      throw new Error("Injected atomic Dice write failure");
+    }
 
-    return Promise.resolve({
-      ok: true,
-      replayed: false,
-      round: {
-        requestId: "00000000-0000-4000-8000-000000000000",
-        bet: 0,
-        prediction: 1,
-        result: 1,
-        outcome: "win",
-        netDelta: 0,
-        finalCredits: 0,
-      },
-    });
+    return super.commitDiceRound(write);
   }
 }
 
@@ -84,26 +63,78 @@ function createSubject({
   readonly credits?: number;
   readonly forcedResult?: number;
 } = {}): DiceTestSubject {
-  const state: DiceStateProbe = {
-    account: { id: ACCOUNT_ID, credits },
-    rounds: [],
-    transactions: [],
+  const store = new DiceTestStore();
+  const accountRepository = new AccountRepository(store);
+  const transactionRepository = new CreditTransactionRepository(store);
+  const initialCreditPolicy: CreditPolicy = {
+    ...creditPolicy,
+    startingDelta: credits,
   };
-  const randomSource: RandomSource = {
-    rollDie: () => forcedResult,
-  };
+  let nextId = 0;
+  const unitOfWork = new RuntimeUnitOfWork({
+    store,
+    creditPolicy: initialCreditPolicy,
+    generateId: () => `dice-test-id-${(nextId += 1)}`,
+    now: () => new Date("2026-08-15T10:00:00.000Z"),
+  });
+  const account = unitOfWork.createAccountWithStartingCredit({
+    displayName: "Ada Spielerin",
+    normalizedEmail: "ada@example.com",
+    passwordHash: "$test$password-hash",
+  });
+  let randomRolls = 0;
+  const service = new DefaultDiceRoundService({
+    authenticationService: {
+      requireAuthenticatedAccount(sessionToken) {
+        return Promise.resolve(
+          sessionToken === VALID_SESSION_TOKEN
+            ? {
+                ok: true as const,
+                principal: {
+                  accountId: account.id,
+                  sessionId: "session-1",
+                },
+              }
+            : {
+                ok: false as const,
+                code: "AUTHENTICATION_REQUIRED" as const,
+              },
+        );
+      },
+    },
+    accountRepository,
+    creditService: creditPolicy,
+    unitOfWork,
+    randomSource: {
+      rollDie() {
+        randomRolls += 1;
+        return forcedResult;
+      },
+    },
+  });
 
   return {
-    service: new NotImplementedDiceRoundService(randomSource),
-    failNextAtomicWrite() {},
+    service,
+    failNextAtomicWrite() {
+      store.failNextDiceCommit();
+    },
     inspectState() {
+      const currentAccount = accountRepository.findById(account.id);
+
+      if (!currentAccount) {
+        throw new Error("Dice test account disappeared");
+      }
+
       return {
-        account: { ...state.account },
-        rounds: state.rounds.map((round) => ({ ...round })),
-        transactions: state.transactions.map((transaction) => ({
-          ...transaction,
-        })),
+        credits: currentAccount.credits,
+        rounds: store.listGameRounds(),
+        transactions: transactionRepository
+          .listAll()
+          .filter((transaction) => transaction.reason === "DICE_ROUND"),
       };
+    },
+    randomRollCount() {
+      return randomRolls;
     },
   };
 }
@@ -137,13 +168,13 @@ function expectFailure(
 
 function expectUnchanged(subject: DiceTestSubject, credits = STARTING_BALANCE) {
   expect(subject.inspectState()).toEqual({
-    account: { id: ACCOUNT_ID, credits },
+    credits,
     rounds: [],
     transactions: [],
   });
 }
 
-describe("Dice settlement and security contract (RED)", () => {
+describe("Dice settlement and security contract", () => {
   it("settles the minimum valid bet", async () => {
     const subject = createSubject({ forcedResult: 1 });
 
@@ -207,6 +238,7 @@ describe("Dice settlement and security contract (RED)", () => {
 
     expectFailure(result, "INSUFFICIENT_CREDITS");
     expectUnchanged(subject, 10);
+    expect(subject.randomRollCount()).toBe(0);
   });
 
   it.each([
@@ -245,6 +277,7 @@ describe("Dice settlement and security contract (RED)", () => {
       prediction: 4,
       ...testCase.expected,
     });
+    expect(subject.inspectState().credits).toBe(testCase.expected.finalCredits);
   });
 
   it("creates exactly one related round and one net transaction", async () => {
@@ -263,15 +296,14 @@ describe("Dice settlement and security contract (RED)", () => {
     const [transaction] = state.transactions;
     expect(round.transactionId).toBe(transaction.id);
     expect(transaction.roundId).toBe(round.id);
-    expect(round.accountId).toBe(ACCOUNT_ID);
     expect(transaction).toMatchObject({
-      accountId: ACCOUNT_ID,
+      accountId: round.accountId,
       delta: 50,
       reason: DICE_RULE.transactionReason,
       resultingBalance: 150,
     });
-    expect(round.finalCredits).toBe(state.account.credits);
-    expect(transaction.resultingBalance).toBe(state.account.credits);
+    expect(round.finalCredits).toBe(state.credits);
+    expect(transaction.resultingBalance).toBe(state.credits);
   });
 
   it("returns only the safe Dice DTO", async () => {
@@ -292,7 +324,7 @@ describe("Dice settlement and security contract (RED)", () => {
       "requestId",
       "result",
     ]);
-    expect(JSON.stringify(result)).not.toContain(ACCOUNT_ID);
+    expect(JSON.stringify(result)).not.toContain("accountId");
     expect(JSON.stringify(result)).not.toContain(VALID_SESSION_TOKEN);
     expect(JSON.stringify(result)).not.toContain("transactionId");
   });
@@ -300,10 +332,10 @@ describe("Dice settlement and security contract (RED)", () => {
   it("does not reserve an idempotency key for a rejected request", async () => {
     const subject = createSubject();
 
-    const rejected = await subject.service.play(
-      VALID_SESSION_TOKEN,
-      validInput({ requestId: SECOND_REQUEST_ID, prediction: 7 }),
-    );
+    const rejected = await subject.service.play(VALID_SESSION_TOKEN, {
+      ...validInput({ requestId: SECOND_REQUEST_ID }),
+      prediction: 7,
+    });
 
     expectFailure(rejected, "INVALID_INPUT");
     expectUnchanged(subject);
@@ -316,7 +348,7 @@ describe("Dice settlement and security contract (RED)", () => {
     expect(corrected.round.requestId).toBe(SECOND_REQUEST_ID);
   });
 
-  it("replays an identical request without a second mutation", async () => {
+  it("replays an identical request without a second mutation or roll", async () => {
     const subject = createSubject({ forcedResult: 4 });
 
     const first = await subject.service.play(
@@ -335,9 +367,10 @@ describe("Dice settlement and security contract (RED)", () => {
     expect(replay.round).toEqual(first.round);
     expect(subject.inspectState().rounds).toHaveLength(1);
     expect(subject.inspectState().transactions).toHaveLength(1);
+    expect(subject.randomRollCount()).toBe(1);
   });
 
-  it("rejects a conflicting reuse of a request ID without a second mutation", async () => {
+  it("rejects a conflicting request ID without a second mutation", async () => {
     const subject = createSubject({ forcedResult: 4 });
 
     const first = await subject.service.play(
@@ -353,9 +386,10 @@ describe("Dice settlement and security contract (RED)", () => {
     expectFailure(conflict, "REQUEST_CONFLICT");
     expect(subject.inspectState().rounds).toHaveLength(1);
     expect(subject.inspectState().transactions).toHaveLength(1);
+    expect(subject.randomRollCount()).toBe(1);
   });
 
-  it("keeps balance, ledger, and rounds unchanged after an atomic write failure", async () => {
+  it("keeps all settlement state unchanged after an atomic write failure", async () => {
     const subject = createSubject({ forcedResult: 4 });
     subject.failNextAtomicWrite();
 
@@ -375,6 +409,7 @@ describe("Dice settlement and security contract (RED)", () => {
 
     expectFailure(result, "AUTHENTICATION_REQUIRED");
     expectUnchanged(subject);
+    expect(subject.randomRollCount()).toBe(0);
   });
 
   it("rejects client-selected authority and settlement fields", async () => {

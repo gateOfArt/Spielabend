@@ -1,8 +1,14 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import type { Account, CreditTransaction } from "@/domain/account";
-import type { CreditPolicy } from "@/domain/credits";
-import type { InMemoryStore } from "@/server/store/in-memory-store";
+import { creditPolicy, type CreditPolicy } from "@/domain/credits";
+import type { DiceOutcome, GameRound } from "@/domain/dice";
+import {
+  inMemoryStore,
+  type DiceRoundCommitResult,
+  type InMemoryStore,
+} from "@/server/store/in-memory-store";
 
 export type AccountCreationStage = "account-write" | "ledger-write";
 
@@ -22,6 +28,18 @@ export interface CreateAccountCommand {
   displayName: string;
   normalizedEmail: string;
   passwordHash: string;
+}
+
+export interface SettleDiceRoundCommand {
+  readonly accountId: string;
+  readonly expectedBalance: number;
+  readonly requestId: string;
+  readonly bet: number;
+  readonly prediction: number;
+  readonly result: number;
+  readonly outcome: DiceOutcome;
+  readonly netDelta: number;
+  readonly finalCredits: number;
 }
 
 export class DuplicateNormalizedEmailError extends Error {
@@ -81,6 +99,7 @@ export class RuntimeUnitOfWork {
     const transaction: CreditTransaction = {
       id: this.generateId(),
       accountId: account.id,
+      roundId: null,
       delta: this.creditPolicy.startingDelta,
       reason: this.creditPolicy.startingReason,
       resultingBalance: startingBalance,
@@ -100,4 +119,53 @@ export class RuntimeUnitOfWork {
 
     return account;
   }
+
+  findDiceRoundByRequest(
+    accountId: string,
+    requestId: string,
+  ): GameRound | null {
+    return this.store.findGameRoundByRequest(accountId, requestId);
+  }
+
+  settleDiceRound(command: SettleDiceRoundCommand): DiceRoundCommitResult {
+    const createdAt = this.now().toISOString();
+    const roundId = this.generateId();
+    const transactionId = this.generateId();
+    const round: GameRound = {
+      id: roundId,
+      accountId: command.accountId,
+      transactionId,
+      requestId: command.requestId,
+      game: "DICE",
+      bet: command.bet,
+      prediction: command.prediction,
+      result: command.result,
+      outcome: command.outcome,
+      netDelta: command.netDelta,
+      finalCredits: command.finalCredits,
+      createdAt,
+    };
+    const transaction: CreditTransaction = {
+      id: transactionId,
+      accountId: command.accountId,
+      roundId,
+      delta: command.netDelta,
+      reason: "DICE_ROUND",
+      resultingBalance: command.finalCredits,
+      createdAt,
+    };
+
+    return this.store.commitDiceRound({
+      expectedBalance: command.expectedBalance,
+      round,
+      transaction,
+    });
+  }
 }
+
+export const runtimeUnitOfWork = new RuntimeUnitOfWork({
+  store: inMemoryStore,
+  creditPolicy,
+  generateId: randomUUID,
+  now: () => new Date(),
+});

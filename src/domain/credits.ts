@@ -1,13 +1,20 @@
 export const STARTING_CREDITS = 100;
 
 export const STARTING_CREDIT_REASON = "STARTING_CREDIT" as const;
+export const DICE_ROUND_CREDIT_REASON = "DICE_ROUND" as const;
 
 export type StartingCreditReason = typeof STARTING_CREDIT_REASON;
+export type CreditTransactionReason =
+  | StartingCreditReason
+  | typeof DICE_ROUND_CREDIT_REASON;
 
-export interface CreditPolicy {
+export interface CreditService {
+  calculateResultingBalance(currentBalance: number, delta: number): number | null;
+}
+
+export interface CreditPolicy extends CreditService {
   readonly startingDelta: number;
   readonly startingReason: StartingCreditReason;
-  calculateResultingBalance(currentBalance: number, delta: number): number | null;
 }
 
 export const creditPolicy: CreditPolicy = Object.freeze({

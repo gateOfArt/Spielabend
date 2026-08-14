@@ -2,7 +2,7 @@
 
 ## Runtime contract
 
-The installed and locked baseline is Next.js **16.2.10**, React **19.2.4**, and React DOM **19.2.4**. The application uses npm lockfile version 3, the App Router, strict TypeScript, `src/`, ESLint, and the `@/*` alias. Dependency upgrades must be deliberate, lockfile-backed, tested, and reflected here.
+The installed and locked baseline is Next.js **16.3.1**, React **19.2.4**, and React DOM **19.2.4**. The application uses npm lockfile version 3, the App Router, strict TypeScript, `src/`, ESLint, and the `@/*` alias. Dependency upgrades must be deliberate, lockfile-backed, tested, and reflected here.
 
 ## Application shape
 

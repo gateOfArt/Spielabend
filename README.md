@@ -4,7 +4,7 @@ Repository foundation for the university project “Spieleabend.” Business fea
 
 ## Runtime contract
 
-- Next.js 16.2.10, App Router only
+- Next.js 16.3.1, App Router only
 - React and React DOM 19.2.4
 - TypeScript in strict mode
 - Source root `src/` and alias `@/*`
@@ -26,7 +26,8 @@ Open [http://localhost:3000](http://localhost:3000) in a browser.
 ```bash
 npm run lint
 npm run typecheck
-npm run build
+npm run test
+npm run verify
 ```
 
 Start with `AGENTS.md` and the documents in `docs/` before implementing a requirement.

@@ -1,5 +1,7 @@
 # Foundation validation — 2026-08-14
 
+This is historical evidence for foundation commit `6e237ac`. The current pinned runtime and current phase checks are recorded in `README.md`, `docs/architecture.md`, and `docs/testing-strategy.md`.
+
 ## Automated evidence
 
 | Check | Observed result |

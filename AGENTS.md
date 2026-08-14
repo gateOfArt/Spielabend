@@ -7,25 +7,43 @@ Before changing code, read `docs/requirements.md` and the relevant consolidated 
 - Validate every external boundary. Re-check authentication, authorization, ownership, and server authority for each protected operation.
 - Preserve the runtime contract recorded in `docs/technical-concept.md`; change pinned dependencies deliberately and update the lockfile.
 - Keep changes within the approved requirement and scope; avoid unrelated cleanup.
-- After a meaningful feature phase, update only the affected tests and consolidated documentation with confirmed facts.
+- Follow the binding documentation checkpoints below; do not update lecturer-facing documentation after every prompt or commit.
 - Run the relevant lint, typecheck, test, and build checks. Require a human diff review, and log factual human corrections without inventing verification.
 
 ## Documentation maintenance
 
-Do not update documentation after every prompt or commit. Use these checkpoints from the current playbook:
+The only maintained lecturer-facing documentation is:
 
-| Checkpoint | Files eligible for update |
+- `docs/requirements.md`
+- `docs/technical-concept.md`
+- `docs/ui-concept.md`
+- `docs/test-cases.md`
+- `docs/ai-usage.md`
+- `docs/wireframes/`
+
+Do not create or restore feature PRDs, a requirement matrix, source register, testing-strategy document, prompt reports, or separate architecture, API, security, or data-model documents.
+
+| Checkpoint | Required documentation action |
 | --- | --- |
-| Now, after PROMPT 05B | Create the five baseline documents |
-| After PROMPT 06B, not PROMPT 06A | Authentication/session requirements, technical concept, test cases, and AI usage |
-| After AUDIT A3 reports `CORE READY` | Synchronize Dice, lobby, leaderboard, core API, and UI evidence |
-| After PROMPT 11 and AUDIT A4 | Synchronize Roulette and shared-game evidence |
-| After AUDIT A5 — Pre-Documentation Technical Gate | Update only concepts or tests that actually changed during security, UX, and integration work |
-| During PROMPT 14, before PROMPT 15 and PROMPT 16 | Perform one complete code–test–documentation consistency review |
+| After PROMPT 05B | Baseline consolidation of all five Markdown documents. Already completed; do not repeat it. |
+| After PROMPT 06A | No documentation update. PROMPT 06A contains contract seams and RED tests only. |
+| After PROMPT 06B | Update `requirements.md`, `technical-concept.md`, `test-cases.md`, and `ai-usage.md` for implemented authentication, sessions, protected access, and logout. Update `ui-concept.md` only if the implemented authentication UI differs materially from the existing concept. |
+| After AUDIT A2, between PROMPT 06B and AUDIT A3 | No routine documentation update. Update an affected document only when the audit causes an actual code, requirement, or architecture correction. |
+| After PROMPT 07 — Dice RED | No documentation update. Executable RED tests are the evidence at this point. |
+| After PROMPT 08 — Dice GREEN/UI | Do not perform the full documentation synchronization yet; defer it to AUDIT A3 unless an architecture decision changes immediately. |
+| After PROMPT 09A, PROMPT 09B, or PROMPT 09C individually | No documentation update after each sub-prompt. Accumulate the completed lobby, leaderboard, navigation, REST, and responsive-layout evidence until AUDIT A3. |
+| After AUDIT A3 reports `CORE READY` | Update all affected consolidated documents once: `requirements.md`, `technical-concept.md`, `ui-concept.md`, `test-cases.md`, and `ai-usage.md`. Record the completed Dice/core vertical slice, lobby, leaderboard, REST API, and Grid/Flex evidence. |
+| After PROMPT 10 | No documentation update. Roulette is still in its RED/contract phase. |
+| After PROMPT 11 | Defer the full update until AUDIT A4 unless implementation forced an immediate architecture correction. |
+| After AUDIT A4 | Update all affected consolidated documents once for completed Roulette and the reusable shared-game architecture. |
+| After PROMPT 12 or PROMPT 13 | Do not update documentation routinely. Accumulate changes until AUDIT A5 unless an actual correction requires an affected document to change immediately. |
+| After AUDIT A5 — Pre-Documentation Technical Gate | Update only `technical-concept.md`, `ui-concept.md`, `test-cases.md`, and `ai-usage.md`, and only where verified implementation or evidence changed. Update `requirements.md` only if scope or acceptance criteria actually changed. |
+| Before final PDF/documentation work in PROMPT 14 | Perform one complete synchronization of all five Markdown documents with code, tests, and Git history. Verify the real wireframe evidence in `docs/wireframes/`. |
 
-- Update `docs/requirements.md` only when scope, status, or acceptance criteria change.
-- Update `docs/technical-concept.md` only when architecture, data model, API, rendering, or security decisions change.
-- Update `docs/ui-concept.md` only after a completed UI milestone or an actual component or boundary change.
-- Update `docs/test-cases.md` only after a complete GREEN vertical slice or integration-test milestone.
-- Update `docs/ai-usage.md` once per meaningful phase, never after every prompt or commit.
-- Never create new PRD, matrix, source-register, progress-report, or audit-log files.
+- `requirements.md`: update only for an actual scope, status, or acceptance-criteria change.
+- `technical-concept.md`: update only for a verified architecture, data-model, API, rendering, persistence, or security change.
+- `ui-concept.md`: update only after a completed UI milestone or a material component-tree, Props/state, Grid/Flex, or Server/Client-boundary change.
+- `test-cases.md`: update only after a complete GREEN vertical slice, an integration milestone, or a final test audit. Do not rewrite it merely because a RED test file was added.
+- `ai-usage.md`: add one concise entry per meaningful completed phase, never per prompt or commit. Record only actual AI assistance, technical validation, and confirmed human decisions.
+- `docs/wireframes/`: update when real wireframes are created or intentionally revised, and perform a final evidence check before the PDF. Never generate fake photographs or claim absent evidence.
+- Audit prompts do not automatically trigger documentation edits. Only an actual resulting correction does.

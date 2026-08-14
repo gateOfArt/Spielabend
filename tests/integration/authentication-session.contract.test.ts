@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   SESSION_POLICY,
   type AuthenticationSessionService,
-  type CookieMutationAuthorizationResult,
   type LoginErrorCode,
   type LoginResult,
   type LogoutResult,
   type SessionAuthenticationResult,
   type SessionRecord,
 } from "@/server/auth/authentication.contract";
+import { Sha256SessionTokenHasher } from "@/server/auth/session-crypto";
+import { creditPolicy } from "@/domain/credits";
+import { AccountRepository } from "@/server/repositories/account-repository";
+import { CreditTransactionRepository } from "@/server/repositories/credit-transaction-repository";
+import { SessionRepository } from "@/server/repositories/session-repository";
+import { DefaultAuthenticationSessionService } from "@/server/services/authentication-session";
+import { RuntimeUnitOfWork } from "@/server/services/runtime-unit-of-work";
+import { InMemoryStore } from "@/server/store/in-memory-store";
 
 const NOW = new Date("2026-08-14T08:00:00.000Z");
 const ACTIVE_SESSION_EXPIRY = new Date(
@@ -17,6 +24,12 @@ const ACTIVE_SESSION_EXPIRY = new Date(
 const EXPIRED_SESSION_EXPIRY = new Date(
   NOW.getTime() - 1,
 ).toISOString();
+const CORRECT_PASSWORD = "correct horse battery staple";
+const PASSWORD_HASH = "$argon2id$test-password-hash";
+const CURRENT_SESSION_TOKEN = Buffer.alloc(32, 201).toString("base64url");
+const SECOND_SESSION_TOKEN = Buffer.alloc(32, 202).toString("base64url");
+const EXPIRED_SESSION_TOKEN = Buffer.alloc(32, 203).toString("base64url");
+const UNKNOWN_SESSION_TOKEN = Buffer.alloc(32, 204).toString("base64url");
 
 interface StoredAccountProbe {
   readonly id: string;
@@ -63,110 +76,88 @@ interface AuthenticationTestSubject {
   inspectPasswordComparisons(): readonly PasswordComparisonProbe[];
 }
 
-class NotImplementedAuthenticationSessionService
-  implements AuthenticationSessionService
-{
-  login(credentials: unknown): Promise<LoginResult> {
-    void credentials;
-
-    return Promise.resolve({ ok: false, code: "LOGIN_FAILED" });
-  }
-
-  authenticate(sessionToken: unknown): Promise<SessionAuthenticationResult> {
-    void sessionToken;
-
-    return Promise.resolve({
-      ok: true,
-      principal: {
-        accountId: "not-implemented-account",
-        sessionId: "not-implemented-session",
-      },
-    });
-  }
-
-  requireAuthenticatedAccount(
-    sessionToken: unknown,
-  ): Promise<SessionAuthenticationResult> {
-    void sessionToken;
-
-    return Promise.resolve({
-      ok: true,
-      principal: {
-        accountId: "not-implemented-account",
-        sessionId: "not-implemented-session",
-      },
-    });
-  }
-
-  logout(sessionToken: unknown): Promise<LogoutResult> {
-    void sessionToken;
-
-    return Promise.resolve({ ok: false, code: "LOGOUT_FAILED" });
-  }
-
-  authorizeCookieMutation(
-    requestEvidence: unknown,
-  ): Promise<CookieMutationAuthorizationResult> {
-    void requestEvidence;
-
-    return Promise.resolve({
-      ok: true,
-      principal: {
-        accountId: "not-implemented-account",
-        sessionId: "not-implemented-session",
-      },
-    });
-  }
-}
-
 function createSubject(): AuthenticationTestSubject {
-  const accounts: StoredAccountProbe[] = [
-    {
-      id: "account-1",
-      displayName: "Ada Spielerin",
-      normalizedEmail: "ada@example.com",
-      passwordHash: "$argon2id$test-password-hash",
-      credits: 100,
-    },
-  ];
-  const transactions: StoredCreditTransactionProbe[] = [
-    {
-      id: "transaction-1",
-      accountId: "account-1",
-      delta: 100,
-      resultingBalance: 100,
-    },
-  ];
+  const store = new InMemoryStore();
+  const accountRepository = new AccountRepository(store);
+  const transactionRepository = new CreditTransactionRepository(store);
+  const sessionRepository = new SessionRepository(store);
+  const tokenHasher = new Sha256SessionTokenHasher();
+  const passwordComparisons: PasswordComparisonProbe[] = [];
   const rounds: StoredGameRoundProbe[] = [
     { id: "existing-round-1", accountId: "account-1" },
   ];
-  const sessions: SessionRecord[] = [];
-  const passwordComparisons: PasswordComparisonProbe[] = [];
   let nextSessionId = 0;
+  let nextTokenSeed = 0;
+  const unitOfWork = new RuntimeUnitOfWork({
+    store,
+    creditPolicy,
+    generateId: (() => {
+      let nextAccountWriteId = 0;
+
+      return () => {
+        nextAccountWriteId += 1;
+        return nextAccountWriteId === 1
+          ? "account-1"
+          : `account-write-${nextAccountWriteId}`;
+      };
+    })(),
+    now: () => NOW,
+  });
+  unitOfWork.createAccountWithStartingCredit({
+    displayName: "Ada Spielerin",
+    normalizedEmail: "ada@example.com",
+    passwordHash: PASSWORD_HASH,
+  });
+  const service: AuthenticationSessionService =
+    new DefaultAuthenticationSessionService({
+      accountRepository,
+      sessionRepository,
+      passwordVerifier: {
+        verify(passwordHash, candidatePassword) {
+          passwordComparisons.push({ passwordHash, candidatePassword });
+
+          return Promise.resolve(
+            passwordHash === PASSWORD_HASH &&
+              candidatePassword === CORRECT_PASSWORD,
+          );
+        },
+      },
+      tokenGenerator: {
+        generate() {
+          nextTokenSeed += 1;
+          return Buffer.alloc(32, nextTokenSeed).toString("base64url");
+        },
+      },
+      tokenHasher,
+      generateId: () => `session-${(nextSessionId += 1)}`,
+      now: () => NOW,
+      isProduction: true,
+    });
 
   return {
-    service: new NotImplementedAuthenticationSessionService(),
+    service,
     seedSession({
       token,
       expiresAt = ACTIVE_SESSION_EXPIRY,
       accountId = "account-1",
     }) {
-      void token;
       nextSessionId += 1;
-      sessions.push({
+      sessionRepository.create({
         id: `seeded-session-${nextSessionId}`,
         accountId,
-        tokenHash: `seeded-token-hash-${nextSessionId}`,
-        createdAt: NOW.toISOString(),
+        tokenHash: tokenHasher.hash(token),
+        createdAt: new Date(
+          Date.parse(expiresAt) - SESSION_POLICY.lifetimeMs,
+        ).toISOString(),
         expiresAt,
       });
     },
     inspectState() {
       return {
-        accounts: accounts.map((account) => ({ ...account })),
-        transactions: transactions.map((transaction) => ({ ...transaction })),
+        accounts: accountRepository.listAll(),
+        transactions: transactionRepository.listAll(),
         rounds: rounds.map((round) => ({ ...round })),
-        sessions: sessions.map((session) => ({ ...session })),
+        sessions: sessionRepository.listAll(),
       };
     },
     inspectPasswordComparisons() {
@@ -178,7 +169,7 @@ function createSubject(): AuthenticationTestSubject {
 function validCredentials() {
   return {
     email: " ADA@EXAMPLE.COM ",
-    password: "correct horse battery staple",
+    password: CORRECT_PASSWORD,
   };
 }
 
@@ -205,7 +196,7 @@ function expectLogoutSuccess(
   expect(result.ok).toBe(true);
 }
 
-describe("authentication, sessions, and logout contract (RED)", () => {
+describe("authentication, sessions, and logout contract", () => {
   it("creates exactly one server-side session for valid credentials", async () => {
     const subject = createSubject();
 
@@ -225,7 +216,7 @@ describe("authentication, sessions, and logout contract (RED)", () => {
       caseName: "unknown account",
       credentials: {
         email: "unknown@example.com",
-        password: "correct horse battery staple",
+        password: CORRECT_PASSWORD,
       },
     },
     {
@@ -319,8 +310,8 @@ describe("authentication, sessions, and logout contract (RED)", () => {
   });
 
   it.each([
-    { caseName: "unknown", token: "unknown-session-token", seed: false },
-    { caseName: "expired", token: "expired-session-token", seed: true },
+    { caseName: "unknown", token: UNKNOWN_SESSION_TOKEN, seed: false },
+    { caseName: "expired", token: EXPIRED_SESSION_TOKEN, seed: true },
   ])("rejects an $caseName session", async ({ token, seed }) => {
     const subject = createSubject();
 
@@ -333,7 +324,7 @@ describe("authentication, sessions, and logout contract (RED)", () => {
     expectAuthenticationRequired(result);
   });
 
-  it.each([null, "unknown-session-token"])(
+  it.each([null, UNKNOWN_SESSION_TOKEN])(
     "rejects protected access without a valid session (%s)",
     async (sessionToken) => {
       const subject = createSubject();
@@ -348,10 +339,10 @@ describe("authentication, sessions, and logout contract (RED)", () => {
 
   it("invalidates only the current session and expires its cookie", async () => {
     const subject = createSubject();
-    subject.seedSession({ token: "current-session-token" });
-    subject.seedSession({ token: "second-session-token" });
+    subject.seedSession({ token: CURRENT_SESSION_TOKEN });
+    subject.seedSession({ token: SECOND_SESSION_TOKEN });
 
-    const result = await subject.service.logout("current-session-token");
+    const result = await subject.service.logout(CURRENT_SESSION_TOKEN);
 
     expectLogoutSuccess(result);
     expect(result.cookie).toMatchObject({
@@ -372,10 +363,10 @@ describe("authentication, sessions, and logout contract (RED)", () => {
 
   it("handles repeated logout idempotently", async () => {
     const subject = createSubject();
-    subject.seedSession({ token: "current-session-token" });
+    subject.seedSession({ token: CURRENT_SESSION_TOKEN });
 
-    const first = await subject.service.logout("current-session-token");
-    const repeated = await subject.service.logout("current-session-token");
+    const first = await subject.service.logout(CURRENT_SESSION_TOKEN);
+    const repeated = await subject.service.logout(CURRENT_SESSION_TOKEN);
 
     expectLogoutSuccess(first);
     expectLogoutSuccess(repeated);
@@ -386,10 +377,10 @@ describe("authentication, sessions, and logout contract (RED)", () => {
 
   it("retains accounts, credits, transactions, and rounds after logout", async () => {
     const subject = createSubject();
-    subject.seedSession({ token: "current-session-token" });
+    subject.seedSession({ token: CURRENT_SESSION_TOKEN });
     const before = subject.inspectState();
 
-    const result = await subject.service.logout("current-session-token");
+    const result = await subject.service.logout(CURRENT_SESSION_TOKEN);
 
     expectLogoutSuccess(result);
     const after = subject.inspectState();
@@ -401,17 +392,17 @@ describe("authentication, sessions, and logout contract (RED)", () => {
 
   it("does not invalidate a second session during current-session logout", async () => {
     const subject = createSubject();
-    subject.seedSession({ token: "current-session-token" });
-    subject.seedSession({ token: "second-session-token" });
+    subject.seedSession({ token: CURRENT_SESSION_TOKEN });
+    subject.seedSession({ token: SECOND_SESSION_TOKEN });
 
-    const result = await subject.service.logout("current-session-token");
+    const result = await subject.service.logout(CURRENT_SESSION_TOKEN);
 
     expectLogoutSuccess(result);
     expect(subject.inspectState().sessions).toEqual([
       expect.objectContaining({ id: "seeded-session-2" }),
     ]);
     await expect(
-      subject.service.authenticate("second-session-token"),
+      subject.service.authenticate(SECOND_SESSION_TOKEN),
     ).resolves.toMatchObject({ ok: true });
   });
 
@@ -421,8 +412,9 @@ describe("authentication, sessions, and logout contract (RED)", () => {
       evidence: {
         method: "POST",
         origin: null,
+        trustedOrigin: "https://spieleabend.example",
         secFetchSite: "same-origin",
-        sessionToken: "current-session-token",
+        sessionToken: CURRENT_SESSION_TOKEN,
       },
     },
     {
@@ -430,19 +422,41 @@ describe("authentication, sessions, and logout contract (RED)", () => {
       evidence: {
         method: "DELETE",
         origin: "https://attacker.example",
+        trustedOrigin: "https://spieleabend.example",
         secFetchSite: "cross-site",
-        sessionToken: "current-session-token",
+        sessionToken: CURRENT_SESSION_TOKEN,
       },
     },
   ])(
     "rejects an unsafe cookie-authenticated request with $caseName",
     async ({ evidence }) => {
       const subject = createSubject();
-      subject.seedSession({ token: "current-session-token" });
+      subject.seedSession({ token: CURRENT_SESSION_TOKEN });
 
       const result = await subject.service.authorizeCookieMutation(evidence);
 
       expect(result).toEqual({ ok: false, code: "UNSAFE_REQUEST" });
     },
   );
+
+  it("authorizes a same-origin mutation with a valid current session", async () => {
+    const subject = createSubject();
+    subject.seedSession({ token: CURRENT_SESSION_TOKEN });
+
+    const result = await subject.service.authorizeCookieMutation({
+      method: "POST",
+      origin: "https://spieleabend.example",
+      trustedOrigin: "https://spieleabend.example",
+      secFetchSite: "same-origin",
+      sessionToken: CURRENT_SESSION_TOKEN,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      principal: {
+        accountId: "account-1",
+        sessionId: "seeded-session-1",
+      },
+    });
+  });
 });

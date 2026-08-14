@@ -12,5 +12,11 @@ describe("Argon2 password hasher", () => {
     expect(passwordHash).toMatch(/^\$argon2id\$/);
     expect(passwordHash).not.toContain(password);
     await expect(verify(passwordHash, password)).resolves.toBe(true);
+    await expect(passwordHasher.verify(passwordHash, password)).resolves.toBe(
+      true,
+    );
+    await expect(
+      passwordHasher.verify(passwordHash, "wrong password"),
+    ).resolves.toBe(false);
   });
 });

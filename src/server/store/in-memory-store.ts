@@ -2,11 +2,14 @@ import "server-only";
 
 import type { Account, CreditTransaction } from "@/domain/account";
 import { STARTING_CREDIT_REASON } from "@/domain/credits";
+import type { SessionRecord } from "@/server/auth/authentication.contract";
 
 interface StoreState {
   readonly accountsById: ReadonlyMap<string, Account>;
   readonly accountIdByNormalizedEmail: ReadonlyMap<string, string>;
   readonly creditTransactionsById: ReadonlyMap<string, CreditTransaction>;
+  readonly sessionsById: ReadonlyMap<string, SessionRecord>;
+  readonly sessionIdByTokenHash: ReadonlyMap<string, string>;
 }
 
 export interface AccountWithStartingCreditWrite {
@@ -21,6 +24,8 @@ function createEmptyState(): StoreState {
     accountsById: new Map(),
     accountIdByNormalizedEmail: new Map(),
     creditTransactionsById: new Map(),
+    sessionsById: new Map(),
+    sessionIdByTokenHash: new Map(),
   };
 }
 
@@ -30,6 +35,10 @@ function copyAccount(account: Account): Account {
 
 function copyTransaction(transaction: CreditTransaction): CreditTransaction {
   return { ...transaction };
+}
+
+function copySession(session: SessionRecord): SessionRecord {
+  return { ...session };
 }
 
 export class InMemoryStore {
@@ -44,6 +53,12 @@ export class InMemoryStore {
     return account ? copyAccount(account) : null;
   }
 
+  findAccountById(accountId: string): Account | null {
+    const account = this.#state.accountsById.get(accountId);
+
+    return account ? copyAccount(account) : null;
+  }
+
   listAccounts(): readonly Account[] {
     return Array.from(this.#state.accountsById.values(), copyAccount);
   }
@@ -53,6 +68,73 @@ export class InMemoryStore {
       this.#state.creditTransactionsById.values(),
       copyTransaction,
     );
+  }
+
+  findSessionByTokenHash(tokenHash: string): SessionRecord | null {
+    const sessionId = this.#state.sessionIdByTokenHash.get(tokenHash);
+    const session = sessionId
+      ? this.#state.sessionsById.get(sessionId)
+      : undefined;
+
+    return session ? copySession(session) : null;
+  }
+
+  listSessions(): readonly SessionRecord[] {
+    return Array.from(this.#state.sessionsById.values(), copySession);
+  }
+
+  commitSession(session: SessionRecord): void {
+    const createdAt = Date.parse(session.createdAt);
+    const expiresAt = Date.parse(session.expiresAt);
+
+    if (
+      !this.#state.accountsById.has(session.accountId) ||
+      !session.tokenHash ||
+      !Number.isFinite(createdAt) ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= createdAt
+    ) {
+      throw new Error("Session invariant failed");
+    }
+
+    if (
+      this.#state.sessionsById.has(session.id) ||
+      this.#state.sessionIdByTokenHash.has(session.tokenHash)
+    ) {
+      throw new Error("Generated session identifier collision");
+    }
+
+    const sessionsById = new Map(this.#state.sessionsById);
+    const sessionIdByTokenHash = new Map(this.#state.sessionIdByTokenHash);
+    sessionsById.set(session.id, copySession(session));
+    sessionIdByTokenHash.set(session.tokenHash, session.id);
+
+    this.#state = {
+      ...this.#state,
+      sessionsById,
+      sessionIdByTokenHash,
+    };
+  }
+
+  deleteSessionByTokenHash(tokenHash: string): boolean {
+    const sessionId = this.#state.sessionIdByTokenHash.get(tokenHash);
+
+    if (!sessionId) {
+      return false;
+    }
+
+    const sessionsById = new Map(this.#state.sessionsById);
+    const sessionIdByTokenHash = new Map(this.#state.sessionIdByTokenHash);
+    sessionsById.delete(sessionId);
+    sessionIdByTokenHash.delete(tokenHash);
+
+    this.#state = {
+      ...this.#state,
+      sessionsById,
+      sessionIdByTokenHash,
+    };
+
+    return true;
   }
 
   commitAccountWithStartingCredit(
@@ -101,6 +183,8 @@ export class InMemoryStore {
       accountsById,
       accountIdByNormalizedEmail,
       creditTransactionsById,
+      sessionsById: this.#state.sessionsById,
+      sessionIdByTokenHash: this.#state.sessionIdByTokenHash,
     };
 
     return "created";

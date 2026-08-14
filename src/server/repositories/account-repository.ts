@@ -10,6 +10,10 @@ export class AccountRepository {
     return this.store.findAccountByNormalizedEmail(normalizedEmail);
   }
 
+  findById(accountId: string): Account | null {
+    return this.store.findAccountById(accountId);
+  }
+
   listAll(): readonly Account[] {
     return this.store.listAccounts();
   }

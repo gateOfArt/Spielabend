@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RegisterForm } from "@/components/registration/RegisterForm";
 import { Card } from "@/components/ui/Card";
 import styles from "./page.module.css";
@@ -17,6 +18,10 @@ export default function RegisterPage() {
       <Card as="section" aria-label="Registrierung" className={styles.card}>
         <RegisterForm />
       </Card>
+
+      <p className={styles.alternative}>
+        Bereits registriert? <Link href="/login">Jetzt anmelden</Link>
+      </p>
     </main>
   );
 }

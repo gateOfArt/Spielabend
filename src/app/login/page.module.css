@@ -19,7 +19,8 @@
   line-height: 1;
 }
 
-.intro > p:last-child {
+.intro > p:last-child,
+.alternative {
   color: var(--muted);
   line-height: 1.6;
 }
@@ -34,11 +35,6 @@
 
 .card {
   padding: clamp(1.25rem, 4vw, 2rem);
-}
-
-.alternative {
-  color: var(--muted);
-  line-height: 1.6;
 }
 
 .alternative a {

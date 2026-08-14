@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -10,6 +11,10 @@ export default function Home() {
           The repository foundation is ready. Product behavior will be added only
           from reviewed requirements.
         </p>
+        <nav className={styles.actions} aria-label="Einstieg">
+          <Link href="/login">Anmelden</Link>
+          <Link href="/register">Registrieren</Link>
+        </nav>
       </section>
     </main>
   );

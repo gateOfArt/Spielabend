@@ -33,3 +33,29 @@
   font-size: 1.125rem;
   line-height: 1.6;
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.actions a {
+  padding: 0.625rem 1rem;
+  color: var(--on-primary);
+  border-radius: var(--radius-control);
+  background: var(--primary);
+  font-weight: 650;
+}
+
+.actions a:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .actions a:hover {
+    background: var(--primary-hover);
+  }
+}

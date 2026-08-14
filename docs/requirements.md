@@ -1,32 +1,63 @@
-# Requirements
+# Anforderungen
 
-## Foundation scope
+Dieses Dokument beschreibt den verbindlichen Projektumfang und seinen aktuellen Stand:
 
-These requirements derive from SRC-001. They establish a development baseline without defining business features.
+- **Geplant:** fachlich vorgesehen, aber noch nicht umgesetzt.
+- **Implementiert:** im aktuellen Code vorhanden.
+- **Verifiziert:** implementiert und durch automatisierte Tests nachgewiesen.
 
-| ID | Requirement | Acceptance criterion |
+## Funktionale Anforderungen
+
+| Anforderung | Akzeptanzkriterium | Stand |
 | --- | --- | --- |
-| FND-001 | Maintain one Next.js application at the repository root using the App Router, TypeScript, `src/`, ESLint, and `@/*`. | Root scripts run; `src/app/` exists; no Pages Router or nested application exists. |
-| FND-002 | Pin and record the installed Next.js and React runtime. | `package.json`, lockfile, README, and architecture agree on Next.js 16.3.1 and React/React DOM 19.2.4. |
-| FND-003 | Establish the requested architecture and evidence directories without speculative feature routes or TypeScript placeholders. | Every requested path exists and empty code layers contain only directory markers. |
-| FND-004 | Provide focused executable development, security, testing, and quality-review skills. | Each generated skill has valid frontmatter, exact directory/name alignment, focused instructions, and validator evidence. |
-| FND-005 | Configure a narrow read-only quality-assurance custom agent. | TOML contains no model pin, uses read-only sandboxing, produces evidence-backed review findings and a commit verdict, and forbids feature implementation. |
-| FND-006 | Separate private local notes from tracked factual AI evidence. | `.local/` is ignored and `docs/ai-usage.md` contains an empty factual schema. |
-| FND-007 | Expose all required formal submission facts as human-entered or human-verified fields. | Formal checklist includes every fact from SRC-001 without inventing a Matrikelnummer or external verification. |
-| FND-008 | Validate the foundation. | Available lint, typecheck, and build pass; path, `any`, and likely-secret checks are recorded truthfully. |
+| Registrierung | Eine Person kann mit Anzeigename, E-Mail-Adresse und Passwort genau ein Konto anlegen. Ungültige Eingaben und bereits verwendete normalisierte E-Mail-Adressen werden sicher abgelehnt. | Verifiziert |
+| Anmeldung | Gültige Zugangsdaten erzeugen eine Sitzung; ungültige Zugangsdaten nicht. | Geplant |
+| Virtuelle Credits | Neue Konten erhalten genau einmal das zentrale Startguthaben. Der aktuelle Stand ist sichtbar und wird durch Spielrunden konsistent verändert. | Startguthaben verifiziert; Anzeige und Spieländerungen geplant |
+| Spielseite | Mindestens eine geschützte Spielseite führt eine vollständige, serverseitig entschiedene Runde aus und zeigt Ergebnis sowie neuen Creditstand. | Dice als Kernspiel geplant; Regeln noch nicht festgelegt |
+| Leaderboard | Eine erreichbare Rangliste sortiert Konten nachvollziehbar nach ihrem Creditstand und enthält keine privaten Zugangsdaten. | Geplant |
+| Laufzeitdaten | Konto-, Sitzungs-, Credit- und Spieldaten bleiben im selben laufenden Serverprozess verfügbar. | Konten und Starttransaktionen implementiert; Gesamtablauf geplant |
+| Navigation | Alle implementierten Hauptbereiche sind über echte Links oder Schaltflächen erreichbar. | Geplant; `/` und `/register` sind noch nicht verknüpft |
+| Logout | Die aktuelle Sitzung wird serverseitig ungültig. Konto-, Credit- und Spieldaten bleiben für eine spätere Anmeldung im selben Prozess erhalten. | Geplant |
 
-## Testing and minimal UI scope
+## Registrierung und Startguthaben
 
-These requirements derive from SRC-002 and remain infrastructure-only.
+- Anzeigenamen werden getrimmt, nach Unicode NFC normalisiert und müssen 2 bis 40 Zeichen lang sein. Steuerzeichen sind unzulässig.
+- E-Mail-Adressen werden getrimmt, kleingeschrieben, auf ihr Format geprüft und auf 254 Zeichen begrenzt. Die normalisierte Adresse ist eindeutig.
+- Passwörter werden nicht automatisch getrimmt oder normalisiert, müssen 12 bis 128 Zeichen lang sein und werden mit Argon2id gehasht. Klartextpasswörter werden nicht gespeichert oder ausgegeben.
+- Der Client liefert ausschließlich Anzeigename, E-Mail-Adresse und Passwort. Konto-ID, Rolle, Guthaben und Transaktionsdaten werden serverseitig bestimmt.
+- Das zentrale Startguthaben beträgt 100 Credits. Es erzeugt genau eine positive Transaktion mit dem Grund `STARTING_CREDIT`.
+- Positive Transaktionen erhöhen, negative Transaktionen vermindern den Creditstand. Alle Werte sind sichere Ganzzahlen; ein Stand unter null ist unzulässig.
+- Konto, eindeutige normalisierte E-Mail-Adresse, Creditstand und Starttransaktion werden vollständig oder gar nicht geschrieben.
+- Feldfehler und erwartete allgemeine Fehler werden verständlich ausgegeben. Passwort-Hash, interne IDs und technische Fehlerdetails bleiben serverintern.
 
-| ID | Requirement | Acceptance criterion |
-| --- | --- | --- |
-| P04-001 | Configure the smallest justified test stack. | Vitest, React Testing Library, user-event, jest-dom, jsdom, and Playwright are exactly pinned in the lockfile; scripts cover focused tests, watch mode, E2E, and combined verification. |
-| P04-002 | Add infrastructure smoke coverage without inventing feature tests. | Node-environment, UI-atom, and production landing smoke tests pass; no business test, production reset endpoint, or async Server Component unit test is introduced. |
-| P04-003 | Implement only the approved reusable UI atoms. | Typed `Button`, `Input`, and `Card` components exist with primary/secondary/outlined buttons, controlled-input support, and a semantic card element option. |
-| P04-004 | Provide accessible, narrowly scoped styling hooks. | Native elements, visible input labels, error associations, focus and disabled styles, one CSS Module per atom, and a small global token set are present. |
-| P04-005 | Validate and record the phase honestly. | Lint, strict typecheck, all smoke tests, production build, selected Playwright flow, lockfile consistency, and dependency audit pass; evidence does not claim business coverage or human corrections. |
+## Technische und gestalterische Vorgaben
 
-## Out of scope
+- Das Projekt verwendet Next.js 16.3.1 mit App Router, React 19.2.4 und strengem TypeScript.
+- Server Components sind der Standard. Client Components werden nur für notwendige Browserinteraktion eingesetzt und erhalten minimale, serialisierbare Props.
+- Externe Eingaben werden serverseitig validiert. Identität, Berechtigung, Spielausgang und Credits bleiben serverautoritativ.
+- Die eigene Oberfläche verwendet Server Actions. Zusätzlich ist eine ressourcenorientierte HTTP/JSON-API mit sinnvollen GET-, POST- und DELETE-Operationen vorgesehen. Derzeit ist nur die Registrierungs-Server-Action implementiert.
+- Der aktuelle Datenspeicher gilt nur für einen einzelnen laufenden Node-Prozess. Eine reale Datenbank und Mehrinstanzbetrieb sind nicht implementiert.
+- Wiederverwendbare Komponenten verwenden typisierte Props. Interaktive Formulare können kontrollierten Zustand verwenden, ohne Browserdaten zur fachlichen Wahrheit zu machen.
+- Komponentenstile liegen in CSS Modules. Grid und Flexbox werden passend zur jeweiligen Anordnung eingesetzt.
+- Positive, negative und Grenzfälle werden auf der niedrigsten geeigneten Testebene geprüft. Produktions-Testendpunkte und Sicherheitsumgehungen sind ausgeschlossen.
 
-Authentication, users, invitations, games, rounds, scoring, persistence, APIs, and other business behavior require a sourced PRD and are not part of this phase.
+## Projektumfang
+
+Implementiert sind die technische Grundlage, die Testinfrastruktur, die UI-Basiskomponenten sowie Registrierung und atomare Vergabe des Startguthabens. Zum geplanten Kern gehören Anmeldung, Sitzungen, geschützte Navigation, Dice als vollständiges Kernspiel, Creditdarstellung, Leaderboard, REST-API und Logout.
+
+Roulette ist nach abgeschlossenem Kern der vorgesehene Zielumfang, um die Wiederverwendung der Spiel- und Creditarchitektur zu zeigen. Eine persönliche Spielhistorie bleibt nachrangig. Animationen, lokales Audio und dekorative Effekte werden erst nach technischer und dokumentarischer Fertigstellung erwogen.
+
+OAuth, E-Mail-Verifikation, Passwort-Reset, Mehrfaktor-Authentifizierung, Echtgeld, Zahlungen, eine reale Datenbank, WebSockets, Multiplayer, Chat, ein drittes Spiel, ein Adminbereich und eine Microservice-Implementierung gehören nicht zum aktuellen Umfang.
+
+## Bewertungsrelevante Nachweise
+
+Für die Konzeptbewertung sind Anforderungen, Wireframes, Komponentenbaum, Datenmodell, Architektur, Schnittstellen, Entwicklungsrichtlinien, Testfälle, Rendering und das Konzept eines verteilten Systems nachzuweisen. Für die Implementierung sind insbesondere Unit Tests, Agents und Skills, Codequalität, Server-/Client-Rendering, API, Server Actions, Funktionalität, Struktur, typisierte Props mit kontrolliertem Zustand sowie Grid und Flexbox relevant.
+
+Die Konzeptbewertung umfasst 40 Prozent, die Implementierungsbewertung 60 Prozent. Beide Bereiche werden jeweils anhand ihrer eigenen Kriterien bewertet; daraus wird hier keine Note abgeleitet.
+
+## Formale Rahmenbedingungen
+
+- Das Projekt ist eine Einzelarbeit und soll mindestens zehn inhaltlich nachvollziehbare Entwicklungscommits enthalten.
+- Repository und PDF sollen nach der Matrikelnummer benannt werden; Code und PDF sind über das private GitHub-Repository sowie Moodle abzugeben.
+- Für den Repository-Zugriff ist `wdski25b` mit der Kontaktadresse `wdski25b@jonas-heuer.com` vorgesehen.
+- Als Abgabefrist ist der 16.08.2026 um 23:59 Uhr festgehalten.

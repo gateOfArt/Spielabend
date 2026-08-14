@@ -1,0 +1,97 @@
+.game,
+.form,
+.field,
+.result {
+  display: grid;
+  gap: 1rem;
+}
+
+.balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.balance strong {
+  color: var(--primary);
+  font-size: 1.5rem;
+}
+
+.controls,
+.resultGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.label {
+  font-weight: 650;
+}
+
+.select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  background: var(--surface);
+  font: inherit;
+}
+
+.select:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.fieldError,
+.error {
+  color: var(--danger);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.result {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.resultStatus {
+  color: var(--muted);
+}
+
+.resultGrid div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.resultGrid dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.resultGrid dd {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+@media (max-width: 36rem) {
+  .balance {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .controls,
+  .resultGrid {
+    grid-template-columns: 1fr;
+  }
+}

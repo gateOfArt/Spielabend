@@ -12,6 +12,9 @@ export function AppNavigation({ displayName }: AppNavigationProps) {
       <Link className={styles.brand} href="/lobby">
         Spieleabend
       </Link>
+      <Link className={styles.link} href="/dice">
+        Dice
+      </Link>
       <div className={styles.account}>
         <span>Angemeldet als {displayName}</span>
         <LogoutControl />

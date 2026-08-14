@@ -3,17 +3,20 @@ import { describe, expect, it } from "vitest";
 import { proxy } from "@/proxy";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 
-describe("lobby proxy guard", () => {
-  it("redirects when the session cookie is absent", () => {
+describe("protected navigation proxy guard", () => {
+  it.each(["/lobby", "/dice"])(
+    "redirects %s when the session cookie is absent",
+    (path) => {
     const response = proxy(
-      new NextRequest("https://spieleabend.example/lobby"),
+        new NextRequest(`https://spieleabend.example${path}`),
     );
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
       "https://spieleabend.example/login",
     );
-  });
+    },
+  );
 
   it("uses cookie presence only and leaves authoritative validation to the page", () => {
     const request = new NextRequest("https://spieleabend.example/lobby");

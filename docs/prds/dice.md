@@ -1,6 +1,6 @@
 # Dice: Regel- und Settlementvertrag
 
-**Status:** Regelentwurf für menschliche Freigabe. Dieser Vertrag darf erst nach ausdrücklicher Zustimmung in GREEN implementiert werden.
+**Status:** Die Regel wurde vom Studierenden ausdrücklich freigegeben, implementiert und automatisiert verifiziert.
 
 ## Spielregel
 
@@ -57,7 +57,7 @@ Interne Konto-, Session-, Round- und Transaction-IDs werden nicht ausgegeben. Fe
 
 ## Geschützte Mutation und UI-Verhalten
 
-Die spätere Server Action muss Formdaten strikt validieren, Same-Origin/CSRF-Nachweis prüfen und die Authentifizierung unabhängig vom Route Guard erneut verifizieren. Versteckte Felder und Browserzustand sind keine Autorität. Während einer laufenden Anfrage sind Einsatz, Vorhersage und Submit-Button deaktiviert; erneutes Absenden darf keine zweite Anfrage auslösen. Es werden in dieser RED-Phase weder Produktivservice noch UI, Route Handler oder Testendpunkt implementiert.
+Die Server Action validiert Formdaten strikt, prüft den Same-Origin/CSRF-Nachweis sowie die Sitzung und delegiert anschließend an den Service, der die Authentifizierung erneut verifiziert. Versteckte Felder und Browserzustand sind keine Autorität. Während einer laufenden Anfrage sind Einsatz, Vorhersage und Submit-Button deaktiviert; erneutes Absenden löst keine zweite Anfrage aus. Ein Rate-Limit-Hook ist in der aktuellen Projektgrundlage nicht vorhanden und wurde deshalb in diesem Slice nicht erfunden. Ein öffentlicher Route Handler oder Testendpunkt wurde nicht angelegt.
 
 ## RED-Nachweis
 
@@ -84,4 +84,10 @@ Vitest führte die Datei erfolgreich aus: 17 Prüfungen schlugen wie beabsichtig
 - Vom Client ergänzte Autoritäts- und Settlementfelder: `INVALID_INPUT` wurde erwartet; der Seam lieferte Erfolg.
 - Ungültiges Ergebnis der `RandomSource`: `ROUND_FAILED` wurde erwartet; der Seam lieferte Erfolg.
 
-Die Prüfung der sicheren DTO-Schlüssel bestand bereits, weil der reine Contract-Seam keine geheimen oder internen Felder zurückgibt. Damit beruht RED nicht auf einem Import- oder Kompilierungsfehler. Bis zur ausdrücklichen menschlichen Bestätigung der Spielregel ist der Vertrag nicht für GREEN freigegeben.
+Die Prüfung der sicheren DTO-Schlüssel bestand bereits, weil der reine Contract-Seam keine geheimen oder internen Felder zurückgibt. Damit beruhte RED nicht auf einem Import- oder Kompilierungsfehler. Der Studierende bestätigte anschließend die Regel und gab GREEN frei.
+
+## GREEN-Nachweis
+
+Der fokussierte Vertragstest wurde gegen den realen Dice-Service ausgeführt; alle 18 Fälle bestanden. `npm run verify` bestätigte anschließend ESLint, strenge Typprüfung, den vollständigen Vitest-Lauf, den Next.js-Produktionsbuild und alle Playwright-Abläufe. Der Dice-Browsertest registriert und authentifiziert ein Konto, führt unter `next start` eine echte serverseitige Runde aus und bestätigt den gespeicherten Creditstand nach einem Reload im selben Prozess. `npm audit` und `npm audit --omit=dev` meldeten keine bekannten Schwachstellen.
+
+Die Implementierung enthält den geschützten Service, den erweiterten synchronen `RuntimeUnitOfWork`, die atomare Store-Operation, die Server Action, `/dice` als Server-Component-Seite und eine kleine interaktive Client-Komponente. Das Ergebnis, der Nettobetrag und der endgültige Stand werden ausschließlich serverseitig bestimmt. Eine identische Request-ID wird ohne zweiten Wurf oder zweiten Schreibvorgang wiedergegeben; Konflikte und Teilfehler verändern den Zustand nicht.

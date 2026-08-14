@@ -10,5 +10,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/lobby/:path*"],
+  matcher: ["/lobby/:path*", "/dice/:path*"],
 };

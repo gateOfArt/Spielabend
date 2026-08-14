@@ -13,9 +13,14 @@
   font-weight: 750;
 }
 
-.brand:focus-visible {
+.brand:focus-visible,
+.link:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
+}
+
+.link {
+  font-weight: 650;
 }
 
 .account {

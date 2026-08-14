@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppNavigation } from "@/components/navigation/AppNavigation";
 import { Card } from "@/components/ui/Card";
 import { requireAuthenticatedUser } from "@/server/auth/require-authenticated-user";
@@ -19,9 +20,9 @@ export default async function LobbyPage() {
         <Card as="section" aria-labelledby="credits-title">
           <h2 id="credits-title">Dein Guthaben</h2>
           <p className={styles.credits}>{user.credits} Credits</p>
-          <p className={styles.note}>
-            Spiele werden in einer späteren Phase ergänzt.
-          </p>
+          <Link className={styles.gameLink} href="/dice">
+            Dice spielen
+          </Link>
         </Card>
       </main>
     </div>

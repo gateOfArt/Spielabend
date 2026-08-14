@@ -1,4 +1,8 @@
-export type RegistrationField = "displayName" | "email" | "password";
+import "server-only";
+
+import type { RegistrationFieldErrors } from "@/domain/registration";
+
+export type { RegistrationField } from "@/domain/registration";
 
 export type RegistrationErrorCode =
   | "INVALID_INPUT"
@@ -16,15 +20,9 @@ export type AccountRegistrationResult =
   | {
       ok: false;
       code: RegistrationErrorCode;
-      fieldErrors?: Partial<Record<RegistrationField, readonly string[]>>;
+      fieldErrors?: RegistrationFieldErrors;
     };
 
-/**
- * Contract-only seam for PROMPT 05A RED tests.
- *
- * The unknown input keeps the external boundary explicit. PROMPT 05B will add
- * parsing and production behavior behind this interface.
- */
 export interface AccountRegistrationService {
   register(input: unknown): Promise<AccountRegistrationResult>;
 }

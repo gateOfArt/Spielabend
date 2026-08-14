@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  creditPolicy,
   STARTING_CREDITS,
   STARTING_CREDIT_REASON,
 } from "@/domain/credits";
@@ -8,6 +9,11 @@ import type {
   AccountRegistrationService,
   RegistrationErrorCode,
 } from "@/server/services/account-registration.contract";
+import { DefaultAccountRegistrationService } from "@/server/services/account-registration";
+import { AccountRepository } from "@/server/repositories/account-repository";
+import { CreditTransactionRepository } from "@/server/repositories/credit-transaction-repository";
+import { RuntimeUnitOfWork } from "@/server/services/runtime-unit-of-work";
+import { InMemoryStore } from "@/server/store/in-memory-store";
 
 interface StoredAccountProbe {
   id: string;
@@ -38,32 +44,48 @@ interface AccountRegistrationTestSubject {
   inspectState(): RegistrationStateProbe;
 }
 
-class NotImplementedAccountRegistrationService
-  implements AccountRegistrationService
-{
-  register(input: unknown): Promise<AccountRegistrationResult> {
-    void input;
-
-    return Promise.resolve({
-      ok: false,
-      code: "REGISTRATION_FAILED",
-    });
-  }
-}
-
 function createSubject(): AccountRegistrationTestSubject {
-  const emptyState: RegistrationStateProbe = {
-    accounts: [],
-    transactions: [],
-  };
+  const store = new InMemoryStore();
+  const accountRepository = new AccountRepository(store);
+  const transactionRepository = new CreditTransactionRepository(store);
+  let failurePoint: AtomicFailurePoint | undefined;
+  let nextId = 0;
+  const unitOfWork = new RuntimeUnitOfWork({
+    store,
+    creditPolicy,
+    generateId: () => `test-id-${(nextId += 1)}`,
+    now: () => new Date("2026-08-14T03:00:00.000Z"),
+    hooks: {
+      afterStage(stage) {
+        if (stage === failurePoint) {
+          failurePoint = undefined;
+          throw new Error(`Injected ${stage} failure`);
+        }
+      },
+    },
+  });
+  const service: AccountRegistrationService =
+    new DefaultAccountRegistrationService({
+      accountRepository,
+      passwordHasher: {
+        hash(password) {
+          void password;
+          return Promise.resolve("$test$encoded-password-hash");
+        },
+      },
+      unitOfWork,
+    });
 
   return {
-    service: new NotImplementedAccountRegistrationService(),
+    service,
     failNextWriteAt(point) {
-      void point;
+      failurePoint = point;
     },
     inspectState() {
-      return emptyState;
+      return {
+        accounts: accountRepository.listAll(),
+        transactions: transactionRepository.listAll(),
+      };
     },
   };
 }

@@ -16,9 +16,12 @@
     "verify": "npm run lint && npm run typecheck && npm run test && npm run test:e2e"
   },
   "dependencies": {
+    "argon2": "0.45.1",
     "next": "16.3.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "server-only": "0.0.1",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

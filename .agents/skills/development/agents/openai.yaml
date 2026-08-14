@@ -1,0 +1,4 @@
+interface:
+  display_name: "Development"
+  short_description: "Implement App Router changes safely"
+  default_prompt: "Use $development to implement the next approved Spieleabend change."

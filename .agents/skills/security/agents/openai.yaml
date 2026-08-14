@@ -1,0 +1,4 @@
+interface:
+  display_name: "Security"
+  short_description: "Review and harden security boundaries"
+  default_prompt: "Use $security to threat-model and secure the next approved change."

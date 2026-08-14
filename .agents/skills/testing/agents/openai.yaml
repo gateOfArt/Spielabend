@@ -1,0 +1,4 @@
+interface:
+  display_name: "Testing"
+  short_description: "Design meaningful deterministic tests"
+  default_prompt: "Use $testing to select and implement meaningful tests for an approved change."

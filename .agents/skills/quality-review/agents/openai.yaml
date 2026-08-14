@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quality Review"
+  short_description: "Review evidence, risk, and regressions"
+  default_prompt: "Use $quality-review to perform an evidence-backed review of the current change."

@@ -329,4 +329,14 @@ export class InMemoryStore {
   }
 }
 
-export const inMemoryStore = new InMemoryStore();
+const productionStoreKey: unique symbol = Symbol.for(
+  "spieleabend.production-in-memory-store",
+);
+const runtimeGlobal = globalThis as typeof globalThis & {
+  [productionStoreKey]?: InMemoryStore;
+};
+
+export const inMemoryStore =
+  runtimeGlobal[productionStoreKey] ?? new InMemoryStore();
+
+runtimeGlobal[productionStoreKey] = inMemoryStore;

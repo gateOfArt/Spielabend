@@ -2,6 +2,10 @@ import "server-only";
 
 import { z } from "zod";
 import { Argon2PasswordHasher } from "@/server/auth/password-hasher";
+import {
+  PASSWORD_LENGTH_POLICY,
+  passwordCharacterLength,
+} from "@/server/auth/password-policy";
 import { AccountRepository } from "@/server/repositories/account-repository";
 import { inMemoryStore } from "@/server/store/in-memory-store";
 import type {
@@ -41,12 +45,20 @@ const emailSchema = z
 
 const passwordSchema = z
   .string()
-  .refine((value) => Array.from(value).length >= 12, {
-    error: "Das Passwort muss mindestens 12 Zeichen lang sein.",
-  })
-  .refine((value) => Array.from(value).length <= 128, {
-    error: "Das Passwort darf höchstens 128 Zeichen lang sein.",
-  });
+  .refine(
+    (value) =>
+      passwordCharacterLength(value) >= PASSWORD_LENGTH_POLICY.minimum,
+    {
+      error: `Das Passwort muss mindestens ${PASSWORD_LENGTH_POLICY.minimum} Zeichen lang sein.`,
+    },
+  )
+  .refine(
+    (value) =>
+      passwordCharacterLength(value) <= PASSWORD_LENGTH_POLICY.maximum,
+    {
+      error: `Das Passwort darf höchstens ${PASSWORD_LENGTH_POLICY.maximum} Zeichen lang sein.`,
+    },
+  );
 
 export const registrationInputSchema = z.strictObject({
   displayName: displayNameSchema,

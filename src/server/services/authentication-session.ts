@@ -16,6 +16,7 @@ import {
   type SessionTokenHasher,
 } from "@/server/auth/authentication.contract";
 import { Argon2PasswordHasher } from "@/server/auth/password-hasher";
+import { hasAllowedPasswordLength } from "@/server/auth/password-policy";
 import {
   OpaqueSessionTokenGenerator,
   Sha256SessionTokenHasher,
@@ -29,7 +30,7 @@ const DUMMY_PASSWORD_HASH =
 
 const loginCredentialsSchema = z.strictObject({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
-  password: z.string().min(1).max(128),
+  password: z.string().refine(hasAllowedPasswordLength),
 });
 
 const sessionTokenSchema = z

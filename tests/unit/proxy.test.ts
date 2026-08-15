@@ -1,22 +1,30 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
-import { proxy } from "@/proxy";
+import { config, proxy } from "@/proxy";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 
 describe("protected navigation proxy guard", () => {
-  it.each(["/lobby", "/dice"])(
+  it.each(["/lobby", "/dice", "/leaderboard"])(
     "redirects %s when the session cookie is absent",
     (path) => {
-    const response = proxy(
+      const response = proxy(
         new NextRequest(`https://spieleabend.example${path}`),
-    );
+      );
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "https://spieleabend.example/login",
-    );
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe(
+        "https://spieleabend.example/login",
+      );
     },
   );
+
+  it("matches every protected page", () => {
+    expect(config.matcher).toEqual([
+      "/lobby/:path*",
+      "/dice/:path*",
+      "/leaderboard/:path*",
+    ]);
+  });
 
   it("uses cookie presence only and leaves authoritative validation to the page", () => {
     const request = new NextRequest("https://spieleabend.example/lobby");

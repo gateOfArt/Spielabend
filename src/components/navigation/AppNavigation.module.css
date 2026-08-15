@@ -13,10 +13,15 @@
   font-weight: 750;
 }
 
-.brand:focus-visible,
 .link:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .link {
@@ -32,10 +37,23 @@
   font-size: 0.9375rem;
 }
 
+.identity {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.identity strong {
+  color: var(--foreground);
+}
+
 @media (max-width: 36rem) {
   .navigation,
   .account {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .links {
+    flex-wrap: wrap;
   }
 }

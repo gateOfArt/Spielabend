@@ -9,7 +9,7 @@ export default async function LobbyPage() {
 
   return (
     <div className={styles.shell}>
-      <AppNavigation displayName={user.displayName} />
+      <AppNavigation displayName={user.displayName} credits={user.credits} />
       <main className={styles.page}>
         <section className={styles.intro} aria-labelledby="lobby-title">
           <p className={styles.eyebrow}>Geschützter Bereich</p>
@@ -20,9 +20,14 @@ export default async function LobbyPage() {
         <Card as="section" aria-labelledby="credits-title">
           <h2 id="credits-title">Dein Guthaben</h2>
           <p className={styles.credits}>{user.credits} Credits</p>
-          <Link className={styles.gameLink} href="/dice">
-            Dice spielen
-          </Link>
+          <div className={styles.areaLinks}>
+            <Link className={styles.areaLink} href="/dice">
+              Dice spielen
+            </Link>
+            <Link className={styles.areaLink} href="/leaderboard">
+              Rangliste ansehen
+            </Link>
+          </div>
         </Card>
       </main>
     </div>

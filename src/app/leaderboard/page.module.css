@@ -1,0 +1,95 @@
+.shell {
+  min-height: 100vh;
+}
+
+.page {
+  display: grid;
+  width: min(100%, 64rem);
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  gap: 1.5rem;
+}
+
+.intro {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.intro h1 {
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.intro > p:last-child {
+  max-width: 42rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.eyebrow {
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tableWrapper {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table caption {
+  padding-bottom: 0.75rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+.table th,
+.table td {
+  padding: 0.875rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.table thead th {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.table td:last-child,
+.table thead th:last-child {
+  text-align: right;
+}
+
+.currentRow {
+  background: var(--secondary);
+}
+
+.currentBadge {
+  display: inline-flex;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  color: var(--on-primary);
+  border-radius: 999px;
+  background: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 36rem) {
+  .page {
+    padding: 2rem 1rem;
+  }
+
+  .table th,
+  .table td {
+    padding-inline: 0.5rem;
+  }
+}

@@ -10,7 +10,7 @@ export default async function DicePage() {
 
   return (
     <div className={styles.shell}>
-      <AppNavigation displayName={user.displayName} />
+      <AppNavigation displayName={user.displayName} credits={user.credits} />
       <main className={styles.page}>
         <header className={styles.intro}>
           <p className={styles.eyebrow}>Serverautoritatives Spiel</p>

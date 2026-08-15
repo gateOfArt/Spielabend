@@ -22,7 +22,7 @@ test("keeps the account and credits across logout and login in one server proces
 
   await expect(page).toHaveURL(/\/lobby$/);
   await expect(page.getByRole("heading", { name: "Lobby" })).toBeVisible();
-  await expect(page.getByText("100 Credits")).toBeVisible();
+  await expect(page.getByText("100 Credits").first()).toBeVisible();
   const [sessionCookie] = await context.cookies();
   expect(sessionCookie).toMatchObject({
     httpOnly: true,
@@ -41,5 +41,5 @@ test("keeps the account and credits across logout and login in one server proces
 
   await expect(page).toHaveURL(/\/lobby$/);
   await expect(page.getByText("Willkommen zurück, Session E2E.")).toBeVisible();
-  await expect(page.getByText("100 Credits")).toBeVisible();
+  await expect(page.getByText("100 Credits").first()).toBeVisible();
 });

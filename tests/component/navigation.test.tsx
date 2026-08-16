@@ -18,12 +18,16 @@ describe("AppNavigation", () => {
       "href",
       "/dice",
     );
+    expect(screen.getByRole("link", { name: "Roulette" })).toHaveAttribute(
+      "href",
+      "/roulette",
+    );
     expect(screen.getByRole("link", { name: "Rangliste" })).toHaveAttribute(
       "href",
       "/leaderboard",
     );
     expect(screen.getByText("150 Credits")).toBeVisible();
     expect(screen.getByRole("button", { name: "Abmelden" })).toBeVisible();
-    expect(screen.queryByRole("link", { name: /roulette|verlauf/iu })).toBeNull();
+    expect(screen.queryByRole("link", { name: /verlauf/iu })).toBeNull();
   });
 });

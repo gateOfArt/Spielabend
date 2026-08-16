@@ -18,6 +18,9 @@ export function AppNavigation({ displayName, credits }: AppNavigationProps) {
         <Link className={styles.link} href="/dice">
           Dice
         </Link>
+        <Link className={styles.link} href="/roulette">
+          Roulette
+        </Link>
         <Link className={styles.link} href="/leaderboard">
           Rangliste
         </Link>

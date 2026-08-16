@@ -24,6 +24,9 @@ export default async function LobbyPage() {
             <Link className={styles.areaLink} href="/dice">
               Dice spielen
             </Link>
+            <Link className={styles.areaLink} href="/roulette">
+              Roulette spielen
+            </Link>
             <Link className={styles.areaLink} href="/leaderboard">
               Rangliste ansehen
             </Link>

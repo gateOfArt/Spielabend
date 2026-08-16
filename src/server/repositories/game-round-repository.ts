@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { GameRound } from "@/domain/dice";
+import type { GameRound } from "@/domain/game-round";
 import type { InMemoryStore } from "@/server/store/in-memory-store";
 
 export class GameRoundRepository {

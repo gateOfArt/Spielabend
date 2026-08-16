@@ -4,20 +4,21 @@ import { randomInt } from "node:crypto";
 import { z } from "zod";
 import type { CreditService } from "@/domain/credits";
 import type {
-  DiceField,
-  DiceFieldErrors,
-  DiceRoundDto,
-  DiceRoundResult,
-} from "@/domain/dice";
+  RouletteField,
+  RouletteFieldErrors,
+  RouletteRoundDto,
+  RouletteRoundResult,
+} from "@/domain/roulette";
 import type { GameRound } from "@/domain/game-round";
 import type { AuthenticationSessionService } from "@/server/auth/authentication.contract";
 import { AccountRepository } from "@/server/repositories/account-repository";
 import { authenticationSessionService } from "@/server/services/authentication-session";
 import {
-  DICE_RULE,
-  type DiceRoundService,
-  type RandomSource,
-} from "@/server/services/dice-round.contract";
+  ROULETTE_RULE,
+  resolveRouletteColor,
+  type RouletteRandomSource,
+  type RouletteRoundService,
+} from "@/server/services/roulette-round.contract";
 import {
   runtimeUnitOfWork,
   type RuntimeUnitOfWork,
@@ -34,39 +35,33 @@ const integerInputSchema = z.union([
     .transform((value) => Number(value)),
 ]);
 
-export const diceRoundInputSchema = z.strictObject({
+export const rouletteRoundInputSchema = z.strictObject({
   requestId: z.uuidv4({ error: "Die Request-ID ist ungültig." }),
   bet: integerInputSchema.pipe(
     z
       .number()
       .int({ error: "Der Einsatz muss ganzzahlig sein." })
-      .min(DICE_RULE.minimumBet, {
-        error: `Der Einsatz muss mindestens ${DICE_RULE.minimumBet} Credit betragen.`,
+      .min(ROULETTE_RULE.minimumBet, {
+        error: `Der Einsatz muss mindestens ${ROULETTE_RULE.minimumBet} Credit betragen.`,
       })
-      .max(DICE_RULE.maximumBet, {
-        error: `Der Einsatz darf höchstens ${DICE_RULE.maximumBet} Credits betragen.`,
+      .max(ROULETTE_RULE.maximumBet, {
+        error: `Der Einsatz darf höchstens ${ROULETTE_RULE.maximumBet} Credits betragen.`,
       }),
   ),
-  prediction: integerInputSchema.pipe(
-    z
-      .number()
-      .int({ error: "Die Vorhersage muss ganzzahlig sein." })
-      .min(DICE_RULE.minimumFace, {
-        error: `Die Vorhersage muss mindestens ${DICE_RULE.minimumFace} sein.`,
-      })
-      .max(DICE_RULE.maximumFace, {
-        error: `Die Vorhersage darf höchstens ${DICE_RULE.maximumFace} sein.`,
-      }),
-  ),
+  selection: z.enum(["RED", "BLACK"], {
+    error: "Bitte wähle Rot oder Schwarz.",
+  }),
 });
 
-export type ValidatedDiceRoundInput = z.infer<typeof diceRoundInputSchema>;
+export type ValidatedRouletteRoundInput = z.infer<
+  typeof rouletteRoundInputSchema
+>;
 
-export type DiceRoundValidationResult =
-  | { readonly success: true; readonly data: ValidatedDiceRoundInput }
-  | { readonly success: false; readonly fieldErrors: DiceFieldErrors };
+export type RouletteRoundValidationResult =
+  | { readonly success: true; readonly data: ValidatedRouletteRoundInput }
+  | { readonly success: false; readonly fieldErrors: RouletteFieldErrors };
 
-export interface DiceRoundServiceProps {
+export interface RouletteRoundServiceProps {
   readonly authenticationService: Pick<
     AuthenticationSessionService,
     "requireAuthenticatedAccount"
@@ -74,11 +69,11 @@ export interface DiceRoundServiceProps {
   readonly accountRepository: AccountRepository;
   readonly creditService: CreditService;
   readonly unitOfWork: RuntimeUnitOfWork;
-  readonly randomSource: RandomSource;
+  readonly randomSource: RouletteRandomSource;
 }
 
-function mapFieldErrors(error: z.ZodError): DiceFieldErrors {
-  const fieldErrors: DiceFieldErrors = {};
+function mapFieldErrors(error: z.ZodError): RouletteFieldErrors {
+  const fieldErrors: RouletteFieldErrors = {};
 
   for (const issue of error.issues) {
     const field = issue.path[0];
@@ -86,14 +81,14 @@ function mapFieldErrors(error: z.ZodError): DiceFieldErrors {
     if (
       field !== "requestId" &&
       field !== "bet" &&
-      field !== "prediction"
+      field !== "selection"
     ) {
       continue;
     }
 
-    const diceField: DiceField = field;
-    fieldErrors[diceField] = [
-      ...(fieldErrors[diceField] ?? []),
+    const rouletteField: RouletteField = field;
+    fieldErrors[rouletteField] = [
+      ...(fieldErrors[rouletteField] ?? []),
       issue.message,
     ];
   }
@@ -101,43 +96,50 @@ function mapFieldErrors(error: z.ZodError): DiceFieldErrors {
   return fieldErrors;
 }
 
-export function validateDiceRoundInput(
+export function validateRouletteRoundInput(
   input: unknown,
-): DiceRoundValidationResult {
-  const result = diceRoundInputSchema.safeParse(input);
+): RouletteRoundValidationResult {
+  const result = rouletteRoundInputSchema.safeParse(input);
 
   return result.success
     ? { success: true, data: result.data }
     : { success: false, fieldErrors: mapFieldErrors(result.error) };
 }
 
-function toDto(round: GameRound): DiceRoundDto {
-  if (round.game !== "DICE") {
-    throw new Error("Expected a Dice game round");
+function toDto(round: GameRound): RouletteRoundDto {
+  if (round.game !== "ROULETTE") {
+    throw new Error("Expected a Roulette game round");
   }
 
   return {
     requestId: round.requestId,
     bet: round.bet,
-    prediction: round.prediction,
+    selection: round.selection,
     result: round.result,
+    color: round.color,
     outcome: round.outcome,
     netDelta: round.netDelta,
     finalCredits: round.finalCredits,
   };
 }
 
-export class CryptoDiceRandomSource implements RandomSource {
-  rollDie(): number {
-    return randomInt(DICE_RULE.minimumFace, DICE_RULE.maximumFace + 1);
+export class CryptoRouletteRandomSource implements RouletteRandomSource {
+  spin(): number {
+    return randomInt(
+      ROULETTE_RULE.minimumResult,
+      ROULETTE_RULE.maximumResult + 1,
+    );
   }
 }
 
-export class DefaultDiceRoundService implements DiceRoundService {
-  constructor(private readonly props: DiceRoundServiceProps) {}
+export class DefaultRouletteRoundService implements RouletteRoundService {
+  constructor(private readonly props: RouletteRoundServiceProps) {}
 
-  async play(sessionToken: unknown, input: unknown): Promise<DiceRoundResult> {
-    const validation = validateDiceRoundInput(input);
+  async play(
+    sessionToken: unknown,
+    input: unknown,
+  ): Promise<RouletteRoundResult> {
+    const validation = validateRouletteRoundInput(input);
 
     if (!validation.success) {
       return { ok: false, code: "INVALID_INPUT" };
@@ -160,14 +162,14 @@ export class DefaultDiceRoundService implements DiceRoundService {
       return { ok: false, code: "AUTHENTICATION_REQUIRED" };
     }
 
-    const existingRound = this.props.unitOfWork.findDiceRoundByRequest(
+    const existingRound = this.props.unitOfWork.findRouletteRoundByRequest(
       account.id,
       validation.data.requestId,
     );
 
     if (existingRound) {
       return existingRound.bet === validation.data.bet &&
-        existingRound.prediction === validation.data.prediction
+        existingRound.selection === validation.data.selection
         ? { ok: true, replayed: true, round: toDto(existingRound) }
         : { ok: false, code: "REQUEST_CONFLICT" };
     }
@@ -182,21 +184,21 @@ export class DefaultDiceRoundService implements DiceRoundService {
     }
 
     try {
-      const result = this.props.randomSource.rollDie();
+      const result = this.props.randomSource.spin();
 
       if (
         !Number.isSafeInteger(result) ||
-        result < DICE_RULE.minimumFace ||
-        result > DICE_RULE.maximumFace
+        result < ROULETTE_RULE.minimumResult ||
+        result > ROULETTE_RULE.maximumResult
       ) {
         return { ok: false, code: "ROUND_FAILED" };
       }
 
-      const outcome =
-        result === validation.data.prediction ? "win" : "loss";
+      const color = resolveRouletteColor(result);
+      const outcome = color === validation.data.selection ? "win" : "loss";
       const netDelta =
         outcome === "win"
-          ? validation.data.bet * DICE_RULE.winNetMultiplier
+          ? validation.data.bet * ROULETTE_RULE.winNetMultiplier
           : -validation.data.bet;
       const finalCredits =
         this.props.creditService.calculateResultingBalance(
@@ -208,13 +210,14 @@ export class DefaultDiceRoundService implements DiceRoundService {
         return { ok: false, code: "ROUND_FAILED" };
       }
 
-      const commit = this.props.unitOfWork.settleDiceRound({
+      const commit = this.props.unitOfWork.settleRouletteRound({
         accountId: account.id,
         expectedBalance: account.credits,
         requestId: validation.data.requestId,
         bet: validation.data.bet,
-        prediction: validation.data.prediction,
+        selection: validation.data.selection,
         result,
+        color,
         outcome,
         netDelta,
         finalCredits,
@@ -241,10 +244,10 @@ export class DefaultDiceRoundService implements DiceRoundService {
 
 const productionAccountRepository = new AccountRepository(inMemoryStore);
 
-export const diceRoundService = new DefaultDiceRoundService({
+export const rouletteRoundService = new DefaultRouletteRoundService({
   authenticationService: authenticationSessionService,
   accountRepository: productionAccountRepository,
   creditService: creditPolicy,
   unitOfWork: runtimeUnitOfWork,
-  randomSource: new CryptoDiceRandomSource(),
+  randomSource: new CryptoRouletteRandomSource(),
 });

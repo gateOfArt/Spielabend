@@ -3,11 +3,19 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Account, CreditTransaction } from "@/domain/account";
 import { creditPolicy, type CreditPolicy } from "@/domain/credits";
-import type { DiceOutcome, GameRound } from "@/domain/dice";
+import type { DiceGameRound, DiceOutcome } from "@/domain/dice";
+import type { GameRound } from "@/domain/game-round";
+import type {
+  RouletteColor,
+  RouletteGameRound,
+  RouletteOutcome,
+  RouletteSelection,
+} from "@/domain/roulette";
 import {
   inMemoryStore,
   type DiceRoundCommitResult,
   type InMemoryStore,
+  type RouletteRoundCommitResult,
 } from "@/server/store/in-memory-store";
 
 export type AccountCreationStage = "account-write" | "ledger-write";
@@ -38,6 +46,19 @@ export interface SettleDiceRoundCommand {
   readonly prediction: number;
   readonly result: number;
   readonly outcome: DiceOutcome;
+  readonly netDelta: number;
+  readonly finalCredits: number;
+}
+
+export interface SettleRouletteRoundCommand {
+  readonly accountId: string;
+  readonly expectedBalance: number;
+  readonly requestId: string;
+  readonly bet: number;
+  readonly selection: RouletteSelection;
+  readonly result: number;
+  readonly color: RouletteColor;
+  readonly outcome: RouletteOutcome;
   readonly netDelta: number;
   readonly finalCredits: number;
 }
@@ -123,8 +144,19 @@ export class RuntimeUnitOfWork {
   findDiceRoundByRequest(
     accountId: string,
     requestId: string,
-  ): GameRound | null {
-    return this.store.findGameRoundByRequest(accountId, requestId);
+  ): DiceGameRound | null {
+    const round = this.store.findGameRoundByRequest(accountId, requestId);
+
+    return round && round.game === "DICE" ? round : null;
+  }
+
+  findRouletteRoundByRequest(
+    accountId: string,
+    requestId: string,
+  ): RouletteGameRound | null {
+    const round = this.store.findGameRoundByRequest(accountId, requestId);
+
+    return round && round.game === "ROULETTE" ? round : null;
   }
 
   settleDiceRound(command: SettleDiceRoundCommand): DiceRoundCommitResult {
@@ -156,6 +188,44 @@ export class RuntimeUnitOfWork {
     };
 
     return this.store.commitDiceRound({
+      expectedBalance: command.expectedBalance,
+      round,
+      transaction,
+    });
+  }
+
+  settleRouletteRound(
+    command: SettleRouletteRoundCommand,
+  ): RouletteRoundCommitResult {
+    const createdAt = this.now().toISOString();
+    const roundId = this.generateId();
+    const transactionId = this.generateId();
+    const round: GameRound = {
+      id: roundId,
+      accountId: command.accountId,
+      transactionId,
+      requestId: command.requestId,
+      game: "ROULETTE",
+      bet: command.bet,
+      selection: command.selection,
+      result: command.result,
+      color: command.color,
+      outcome: command.outcome,
+      netDelta: command.netDelta,
+      finalCredits: command.finalCredits,
+      createdAt,
+    };
+    const transaction: CreditTransaction = {
+      id: transactionId,
+      accountId: command.accountId,
+      roundId,
+      delta: command.netDelta,
+      reason: "ROULETTE_ROUND",
+      resultingBalance: command.finalCredits,
+      createdAt,
+    };
+
+    return this.store.commitRouletteRound({
       expectedBalance: command.expectedBalance,
       round,
       transaction,

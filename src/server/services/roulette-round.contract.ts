@@ -1,12 +1,24 @@
 import "server-only";
 
+import { ROULETTE_ROUND_CREDIT_REASON } from "@/domain/credits";
+import type { RouletteColor, RouletteRoundResult } from "@/domain/roulette";
+
+export type {
+  RouletteColor,
+  RouletteOutcome,
+  RouletteRoundDto,
+  RouletteRoundErrorCode,
+  RouletteRoundResult,
+  RouletteSelection,
+} from "@/domain/roulette";
+
 export const ROULETTE_RULE = Object.freeze({
   minimumBet: 1,
   maximumBet: 100,
   minimumResult: 0,
   maximumResult: 36,
   winNetMultiplier: 1,
-  transactionReason: "ROULETTE_ROUND",
+  transactionReason: ROULETTE_ROUND_CREDIT_REASON,
   redNumbers: Object.freeze([
     1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
   ]),
@@ -15,48 +27,29 @@ export const ROULETTE_RULE = Object.freeze({
   ]),
 } as const);
 
-export type RouletteSelection = "RED" | "BLACK";
+/**
+ * Single central source for the European red/black color mapping. `0` is
+ * `GREEN` and belongs to neither wagerable color.
+ */
+export function resolveRouletteColor(result: number): RouletteColor {
+  if ((ROULETTE_RULE.redNumbers as readonly number[]).includes(result)) {
+    return "RED";
+  }
 
-export type RouletteColor = "RED" | "BLACK" | "GREEN";
+  if ((ROULETTE_RULE.blackNumbers as readonly number[]).includes(result)) {
+    return "BLACK";
+  }
 
-export type RouletteOutcome = "win" | "loss";
-
-export type RouletteRoundErrorCode =
-  | "AUTHENTICATION_REQUIRED"
-  | "INVALID_INPUT"
-  | "INSUFFICIENT_CREDITS"
-  | "REQUEST_CONFLICT"
-  | "ROUND_FAILED";
-
-export interface RouletteRoundDto {
-  readonly requestId: string;
-  readonly bet: number;
-  readonly selection: RouletteSelection;
-  readonly result: number;
-  readonly color: RouletteColor;
-  readonly outcome: RouletteOutcome;
-  readonly netDelta: number;
-  readonly finalCredits: number;
+  return "GREEN";
 }
-
-export type RouletteRoundResult =
-  | {
-      readonly ok: true;
-      readonly replayed: boolean;
-      readonly round: RouletteRoundDto;
-    }
-  | {
-      readonly ok: false;
-      readonly code: RouletteRoundErrorCode;
-    };
 
 export interface RouletteRandomSource {
   spin(): number;
 }
 
 /**
- * Contract-only seam for Roulette RED tests. Production behavior follows
- * only after the exact rule has received explicit human approval.
+ * Server-only Roulette service boundary. Identity and settlement values are
+ * always derived and verified on the server.
  */
 export interface RouletteRoundService {
   play(sessionToken: unknown, input: unknown): Promise<RouletteRoundResult>;

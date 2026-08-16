@@ -4,7 +4,7 @@ import {
   creditPolicy,
   type CreditPolicy,
 } from "@/domain/credits";
-import type { GameRound } from "@/domain/dice";
+import type { GameRound } from "@/domain/game-round";
 import { AccountRepository } from "@/server/repositories/account-repository";
 import { CreditTransactionRepository } from "@/server/repositories/credit-transaction-repository";
 import {

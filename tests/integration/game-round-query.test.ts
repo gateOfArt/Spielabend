@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { GameRound } from "@/domain/dice";
+import type { GameRound } from "@/domain/game-round";
 import {
   GameRoundQueryService,
   type GameRoundAccountReader,
@@ -20,6 +20,22 @@ const ownRound: GameRound = {
   netDelta: 50,
   finalCredits: 150,
   createdAt: "2026-08-15T10:00:00.000Z",
+};
+
+const ownRouletteRound: GameRound = {
+  id: "round-own-roulette",
+  accountId: "account-current",
+  transactionId: "transaction-own-roulette",
+  requestId: "3f6a6e9a-2e42-4b34-9a3a-0e3f2c1f9a11",
+  game: "ROULETTE",
+  bet: 10,
+  selection: "RED",
+  result: 1,
+  color: "RED",
+  outcome: "win",
+  netDelta: 10,
+  finalCredits: 160,
+  createdAt: "2026-08-15T10:05:00.000Z",
 };
 
 const foreignRound: GameRound = {
@@ -48,7 +64,7 @@ describe("GameRoundQueryService", () => {
       }),
     };
     const roundReader: GameRoundAccountReader = {
-      listByAccountId: vi.fn(() => [foreignRound, ownRound]),
+      listByAccountId: vi.fn(() => [foreignRound, ownRound, ownRouletteRound]),
     };
     const service = new GameRoundQueryService({ authenticator, roundReader });
 
@@ -57,6 +73,18 @@ describe("GameRoundQueryService", () => {
     expectSuccess(result);
     expect(roundReader.listByAccountId).toHaveBeenCalledWith("account-current");
     expect(result.rounds).toEqual([
+      {
+        game: "ROULETTE",
+        requestId: ownRouletteRound.requestId,
+        bet: 10,
+        selection: "RED",
+        result: 1,
+        color: "RED",
+        outcome: "win",
+        netDelta: 10,
+        finalCredits: 160,
+        createdAt: ownRouletteRound.createdAt,
+      },
       {
         game: "DICE",
         requestId: ownRound.requestId,

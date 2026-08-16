@@ -1,12 +1,13 @@
 import "server-only";
 
-import type { GameRound } from "@/domain/dice";
+import type { GameRound } from "@/domain/game-round";
+import type { RouletteColor, RouletteSelection } from "@/domain/roulette";
 import type { SessionAuthenticationResult } from "@/server/auth/authentication.contract";
 import { GameRoundRepository } from "@/server/repositories/game-round-repository";
 import { authenticationSessionService } from "@/server/services/authentication-session";
 import { inMemoryStore } from "@/server/store/in-memory-store";
 
-export interface GameRoundReadDto {
+export interface DiceGameRoundReadDto {
   readonly game: "DICE";
   readonly requestId: string;
   readonly bet: number;
@@ -17,6 +18,21 @@ export interface GameRoundReadDto {
   readonly finalCredits: number;
   readonly createdAt: string;
 }
+
+export interface RouletteGameRoundReadDto {
+  readonly game: "ROULETTE";
+  readonly requestId: string;
+  readonly bet: number;
+  readonly selection: RouletteSelection;
+  readonly result: number;
+  readonly color: RouletteColor;
+  readonly outcome: "win" | "loss";
+  readonly netDelta: number;
+  readonly finalCredits: number;
+  readonly createdAt: string;
+}
+
+export type GameRoundReadDto = DiceGameRoundReadDto | RouletteGameRoundReadDto;
 
 export type GameRoundQueryResult =
   | { readonly ok: true; readonly rounds: readonly GameRoundReadDto[] }
@@ -70,12 +86,27 @@ export class GameRoundQueryService {
 }
 
 function toDto(round: GameRound): GameRoundReadDto {
+  if (round.game === "DICE") {
+    return {
+      game: "DICE",
+      requestId: round.requestId,
+      bet: round.bet,
+      prediction: round.prediction,
+      result: round.result,
+      outcome: round.outcome,
+      netDelta: round.netDelta,
+      finalCredits: round.finalCredits,
+      createdAt: round.createdAt,
+    };
+  }
+
   return {
-    game: round.game,
+    game: "ROULETTE",
     requestId: round.requestId,
     bet: round.bet,
-    prediction: round.prediction,
+    selection: round.selection,
     result: round.result,
+    color: round.color,
     outcome: round.outcome,
     netDelta: round.netDelta,
     finalCredits: round.finalCredits,

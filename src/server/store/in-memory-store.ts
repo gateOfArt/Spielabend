@@ -3,9 +3,10 @@ import "server-only";
 import type { Account, CreditTransaction } from "@/domain/account";
 import {
   DICE_ROUND_CREDIT_REASON,
+  ROULETTE_ROUND_CREDIT_REASON,
   STARTING_CREDIT_REASON,
 } from "@/domain/credits";
-import type { GameRound } from "@/domain/dice";
+import type { GameRound } from "@/domain/game-round";
 import type { SessionRecord } from "@/server/auth/authentication.contract";
 
 interface StoreState {
@@ -32,6 +33,18 @@ export interface DiceRoundWrite {
 }
 
 export type DiceRoundCommitResult =
+  | { readonly status: "created"; readonly round: GameRound }
+  | { readonly status: "replayed"; readonly round: GameRound }
+  | { readonly status: "conflict" }
+  | { readonly status: "balance-changed" };
+
+export interface RouletteRoundWrite {
+  readonly expectedBalance: number;
+  readonly round: GameRound;
+  readonly transaction: CreditTransaction;
+}
+
+export type RouletteRoundCommitResult =
   | { readonly status: "created"; readonly round: GameRound }
   | { readonly status: "replayed"; readonly round: GameRound }
   | { readonly status: "conflict" }
@@ -253,7 +266,9 @@ export class InMemoryStore {
         throw new Error("Dice idempotency index invariant failed");
       }
 
-      return existingRound.bet === round.bet &&
+      return existingRound.game === "DICE" &&
+        round.game === "DICE" &&
+        existingRound.bet === round.bet &&
         existingRound.prediction === round.prediction
         ? { status: "replayed", round: copyGameRound(existingRound) }
         : { status: "conflict" };
@@ -295,6 +310,97 @@ export class InMemoryStore {
       calculatedBalance < 0
     ) {
       throw new Error("Dice settlement invariant failed");
+    }
+
+    const accountsById = new Map(this.#state.accountsById);
+    const creditTransactionsById = new Map(
+      this.#state.creditTransactionsById,
+    );
+    const gameRoundsById = new Map(this.#state.gameRoundsById);
+    const gameRoundIdByRequest = new Map(
+      this.#state.gameRoundIdByRequest,
+    );
+
+    accountsById.set(account.id, {
+      ...account,
+      credits: calculatedBalance,
+    });
+    creditTransactionsById.set(
+      transaction.id,
+      copyTransaction(transaction),
+    );
+    gameRoundsById.set(round.id, copyGameRound(round));
+    gameRoundIdByRequest.set(idempotencyKey, round.id);
+
+    this.#state = {
+      ...this.#state,
+      accountsById,
+      creditTransactionsById,
+      gameRoundsById,
+      gameRoundIdByRequest,
+    };
+
+    return { status: "created", round: copyGameRound(round) };
+  }
+
+  commitRouletteRound(write: RouletteRoundWrite): RouletteRoundCommitResult {
+    const { expectedBalance, round, transaction } = write;
+    const idempotencyKey = requestKey(round.accountId, round.requestId);
+    const existingRoundId = this.#state.gameRoundIdByRequest.get(
+      idempotencyKey,
+    );
+
+    if (existingRoundId) {
+      const existingRound = this.#state.gameRoundsById.get(existingRoundId);
+
+      if (!existingRound) {
+        throw new Error("Roulette idempotency index invariant failed");
+      }
+
+      return existingRound.game === "ROULETTE" &&
+        round.game === "ROULETTE" &&
+        existingRound.bet === round.bet &&
+        existingRound.selection === round.selection
+        ? { status: "replayed", round: copyGameRound(existingRound) }
+        : { status: "conflict" };
+    }
+
+    const account = this.#state.accountsById.get(round.accountId);
+
+    if (!account) {
+      throw new Error("Roulette account invariant failed");
+    }
+
+    if (account.credits !== expectedBalance) {
+      return { status: "balance-changed" };
+    }
+
+    if (
+      this.#state.gameRoundsById.has(round.id) ||
+      this.#state.creditTransactionsById.has(transaction.id)
+    ) {
+      throw new Error("Generated Roulette identifier collision");
+    }
+
+    const calculatedBalance = expectedBalance + transaction.delta;
+
+    if (
+      round.game !== "ROULETTE" ||
+      transaction.reason !== ROULETTE_ROUND_CREDIT_REASON ||
+      transaction.accountId !== account.id ||
+      transaction.accountId !== round.accountId ||
+      transaction.roundId !== round.id ||
+      round.transactionId !== transaction.id ||
+      round.netDelta !== transaction.delta ||
+      round.finalCredits !== transaction.resultingBalance ||
+      round.finalCredits !== calculatedBalance ||
+      round.createdAt !== transaction.createdAt ||
+      !Number.isSafeInteger(expectedBalance) ||
+      !Number.isSafeInteger(transaction.delta) ||
+      !Number.isSafeInteger(calculatedBalance) ||
+      calculatedBalance < 0
+    ) {
+      throw new Error("Roulette settlement invariant failed");
     }
 
     const accountsById = new Map(this.#state.accountsById);

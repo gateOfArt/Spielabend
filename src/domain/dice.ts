@@ -1,6 +1,6 @@
 export type DiceOutcome = "win" | "loss";
 
-export interface GameRound {
+export interface DiceGameRound {
   readonly id: string;
   readonly accountId: string;
   readonly transactionId: string;

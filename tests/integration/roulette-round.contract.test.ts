@@ -1,81 +1,60 @@
 import { describe, expect, it } from "vitest";
+import type { CreditTransaction } from "@/domain/account";
+import {
+  creditPolicy,
+  type CreditPolicy,
+} from "@/domain/credits";
+import type { GameRound } from "@/domain/game-round";
+import { AccountRepository } from "@/server/repositories/account-repository";
+import { CreditTransactionRepository } from "@/server/repositories/credit-transaction-repository";
 import {
   ROULETTE_RULE,
-  type RouletteRandomSource,
   type RouletteRoundErrorCode,
   type RouletteRoundResult,
   type RouletteRoundService,
 } from "@/server/services/roulette-round.contract";
+import { DefaultRouletteRoundService } from "@/server/services/roulette-round";
+import { RuntimeUnitOfWork } from "@/server/services/runtime-unit-of-work";
+import {
+  InMemoryStore,
+  type RouletteRoundCommitResult,
+  type RouletteRoundWrite,
+} from "@/server/store/in-memory-store";
 
-const ACCOUNT_ID = "account-1";
 const VALID_SESSION_TOKEN = "valid-session-token";
 const VALID_REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const SECOND_REQUEST_ID = "22222222-2222-4222-8222-222222222222";
 const STARTING_BALANCE = 100;
 
-interface AccountProbe {
-  readonly id: string;
-  readonly credits: number;
-}
-
-interface RouletteRoundProbe {
-  readonly id: string;
-  readonly accountId: string;
-  readonly transactionId: string;
-  readonly requestId: string;
-  readonly bet: number;
-  readonly selection: "RED" | "BLACK";
-  readonly result: number;
-  readonly color: "RED" | "BLACK" | "GREEN";
-  readonly outcome: "win" | "loss";
-  readonly netDelta: number;
-  readonly finalCredits: number;
-}
-
-interface RouletteTransactionProbe {
-  readonly id: string;
-  readonly accountId: string;
-  readonly roundId: string;
-  readonly delta: number;
-  readonly reason: typeof ROULETTE_RULE.transactionReason;
-  readonly resultingBalance: number;
-}
-
 interface RouletteStateProbe {
-  readonly account: AccountProbe;
-  readonly rounds: readonly RouletteRoundProbe[];
-  readonly transactions: readonly RouletteTransactionProbe[];
+  readonly credits: number;
+  readonly rounds: readonly GameRound[];
+  readonly transactions: readonly CreditTransaction[];
 }
 
 interface RouletteTestSubject {
   readonly service: RouletteRoundService;
   failNextAtomicWrite(): void;
   inspectState(): RouletteStateProbe;
+  randomSpinCount(): number;
 }
 
-class NotImplementedRouletteRoundService implements RouletteRoundService {
-  constructor(private readonly randomSource: RouletteRandomSource) {
-    void this.randomSource;
+class RouletteTestStore extends InMemoryStore {
+  private shouldFailRouletteCommit = false;
+
+  failNextRouletteCommit() {
+    this.shouldFailRouletteCommit = true;
   }
 
-  play(sessionToken: unknown, input: unknown): Promise<RouletteRoundResult> {
-    void sessionToken;
-    void input;
+  override commitRouletteRound(
+    write: RouletteRoundWrite,
+  ): RouletteRoundCommitResult {
+    if (this.shouldFailRouletteCommit) {
+      this.shouldFailRouletteCommit = false;
+      throw new Error("Injected atomic Roulette write failure");
+    }
 
-    return Promise.resolve({
-      ok: true,
-      replayed: false,
-      round: {
-        requestId: "00000000-0000-4000-8000-000000000000",
-        bet: 0,
-        selection: "RED",
-        result: 1,
-        color: "RED",
-        outcome: "win",
-        netDelta: 0,
-        finalCredits: 0,
-      },
-    });
+    return super.commitRouletteRound(write);
   }
 }
 
@@ -86,20 +65,78 @@ function createSubject({
   readonly credits?: number;
   readonly forcedResult?: number;
 } = {}): RouletteTestSubject {
-  const state: RouletteStateProbe = {
-    account: { id: ACCOUNT_ID, credits },
-    rounds: [],
-    transactions: [],
+  const store = new RouletteTestStore();
+  const accountRepository = new AccountRepository(store);
+  const transactionRepository = new CreditTransactionRepository(store);
+  const initialCreditPolicy: CreditPolicy = {
+    ...creditPolicy,
+    startingDelta: credits,
   };
-  const randomSource: RouletteRandomSource = {
-    spin: () => forcedResult,
-  };
+  let nextId = 0;
+  const unitOfWork = new RuntimeUnitOfWork({
+    store,
+    creditPolicy: initialCreditPolicy,
+    generateId: () => `roulette-test-id-${(nextId += 1)}`,
+    now: () => new Date("2026-08-16T10:00:00.000Z"),
+  });
+  const account = unitOfWork.createAccountWithStartingCredit({
+    displayName: "Ada Spielerin",
+    normalizedEmail: "ada@example.com",
+    passwordHash: "$test$password-hash",
+  });
+  let spins = 0;
+  const service = new DefaultRouletteRoundService({
+    authenticationService: {
+      requireAuthenticatedAccount(sessionToken) {
+        return Promise.resolve(
+          sessionToken === VALID_SESSION_TOKEN
+            ? {
+                ok: true as const,
+                principal: {
+                  accountId: account.id,
+                  sessionId: "session-1",
+                },
+              }
+            : {
+                ok: false as const,
+                code: "AUTHENTICATION_REQUIRED" as const,
+              },
+        );
+      },
+    },
+    accountRepository,
+    creditService: creditPolicy,
+    unitOfWork,
+    randomSource: {
+      spin() {
+        spins += 1;
+        return forcedResult;
+      },
+    },
+  });
 
   return {
-    service: new NotImplementedRouletteRoundService(randomSource),
-    failNextAtomicWrite() {},
+    service,
+    failNextAtomicWrite() {
+      store.failNextRouletteCommit();
+    },
     inspectState() {
-      return state;
+      const currentAccount = accountRepository.findById(account.id);
+
+      if (!currentAccount) {
+        throw new Error("Roulette test account disappeared");
+      }
+
+      return {
+        credits: currentAccount.credits,
+        rounds: store.listGameRounds(),
+        transactions: transactionRepository
+          .listAll()
+          .filter((transaction) => transaction.reason === "ROULETTE_ROUND"),
+      };
+    },
+    randomSpinCount() {
+      return spins;
     },
   };
 }
@@ -136,7 +173,7 @@ function expectUnchanged(
   credits = STARTING_BALANCE,
 ) {
   expect(subject.inspectState()).toEqual({
-    account: { id: ACCOUNT_ID, credits },
+    credits,
     rounds: [],
     transactions: [],
   });
@@ -226,6 +263,7 @@ describe("Roulette settlement and security contract", () => {
 
     expectFailure(result, "INSUFFICIENT_CREDITS");
     expectUnchanged(subject, 10);
+    expect(subject.randomSpinCount()).toBe(0);
   });
 
   it.each([
@@ -292,6 +330,7 @@ describe("Roulette settlement and security contract", () => {
       selection: testCase.selection,
       ...testCase.expected,
     });
+    expect(subject.inspectState().credits).toBe(testCase.expected.finalCredits);
   });
 
   it.each([{ selection: "RED" as const }, { selection: "BLACK" as const }])(
@@ -328,6 +367,18 @@ describe("Roulette settlement and security contract", () => {
     const state = subject.inspectState();
     expect(state.rounds).toHaveLength(1);
     expect(state.transactions).toHaveLength(1);
+    const [round] = state.rounds;
+    const [transaction] = state.transactions;
+    expect(round.transactionId).toBe(transaction.id);
+    expect(transaction.roundId).toBe(round.id);
+    expect(transaction).toMatchObject({
+      accountId: round.accountId,
+      delta: 10,
+      reason: ROULETTE_RULE.transactionReason,
+      resultingBalance: 110,
+    });
+    expect(round.finalCredits).toBe(state.credits);
+    expect(transaction.resultingBalance).toBe(state.credits);
   });
 
   it("returns only the safe Roulette DTO", async () => {
@@ -392,6 +443,7 @@ describe("Roulette settlement and security contract", () => {
     expect(replay.round).toEqual(first.round);
     expect(subject.inspectState().rounds).toHaveLength(1);
     expect(subject.inspectState().transactions).toHaveLength(1);
+    expect(subject.randomSpinCount()).toBe(1);
   });
 
   it("rejects a conflicting request ID without a second mutation", async () => {
@@ -410,6 +462,7 @@ describe("Roulette settlement and security contract", () => {
     expectFailure(conflict, "REQUEST_CONFLICT");
     expect(subject.inspectState().rounds).toHaveLength(1);
     expect(subject.inspectState().transactions).toHaveLength(1);
+    expect(subject.randomSpinCount()).toBe(1);
   });
 
   it("keeps all settlement state unchanged after an atomic write failure", async () => {
@@ -432,6 +485,7 @@ describe("Roulette settlement and security contract", () => {
 
     expectFailure(result, "AUTHENTICATION_REQUIRED");
     expectUnchanged(subject);
+    expect(subject.randomSpinCount()).toBe(0);
   });
 
   it("rejects client-selected authority and settlement fields", async () => {

@@ -2,11 +2,13 @@ export const STARTING_CREDITS = 100;
 
 export const STARTING_CREDIT_REASON = "STARTING_CREDIT" as const;
 export const DICE_ROUND_CREDIT_REASON = "DICE_ROUND" as const;
+export const ROULETTE_ROUND_CREDIT_REASON = "ROULETTE_ROUND" as const;
 
 export type StartingCreditReason = typeof STARTING_CREDIT_REASON;
 export type CreditTransactionReason =
   | StartingCreditReason
-  | typeof DICE_ROUND_CREDIT_REASON;
+  | typeof DICE_ROUND_CREDIT_REASON
+  | typeof ROULETTE_ROUND_CREDIT_REASON;
 
 export interface CreditService {
   calculateResultingBalance(currentBalance: number, delta: number): number | null;

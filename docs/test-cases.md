@@ -1,6 +1,6 @@
 # Testfälle
 
-**Verifiziert** bezeichnet einen im aktuellen Repository vorhandenen und erfolgreich ausgeführten automatisierten Test. **Geplant** bezeichnet Testfälle für noch nicht implementierte Funktionen.
+**Verifiziert** bezeichnet einen im aktuellen Repository vorhandenen und erfolgreich ausgeführten automatisierten Test. Für bewusst nicht umgesetzte Funktionen werden keine Platzhalter-Testfälle geführt.
 
 Unit Tests prüfen reine Regeln, Komponententests die Browserinteraktion, Integrationstests Server-, Service- und Speichergrenzen und ausgewählte E2E-Tests vollständige Nutzerabläufe im Produktionsserver. Verwendet wird jeweils die niedrigste Ebene, die das Verhalten zuverlässig beweist. Veränderliche Effekte wie IDs, Zeit, Zufall und Fehler werden injiziert; Produktions-Testendpunkte, Test-Bypässe und beliebige Wartezeiten sind ausgeschlossen.
 
@@ -21,6 +21,13 @@ Unit Tests prüfen reine Regeln, Komponententests die Browserinteraktion, Integr
 | Login- und Logout-Steuerung | Komponente | Kontrollierte Felder, Pending-Zustände, deaktivierte Schaltflächen und sichere Inline-Fehler funktionieren zugänglich. |
 | Geschützte Lobby | Unit und E2E | Nur eine serverseitig bestätigte Sitzung gewährt Zugriff; Anzeigename und bestehende 100 Credits werden angezeigt. |
 | Logout und erneute Anmeldung | Integration und E2E | Logout widerruft die aktuelle Sitzung und leert das Cookie. Eine erneute Anmeldung im selben Serverprozess zeigt dasselbe Konto und Startguthaben. |
+| Dice-Spielrunde | Integration, Komponente und E2E | Einsatz 1–100 und Vorhersage 1–6; der Server bestimmt Ergebnis, Gewinnstatus (Treffer = `+5×Einsatz`, sonst `−Einsatz`), genau eine `GameRound` und eine passende `CreditTransaction`. Ein produktionsnaher Browserlauf bestätigt das Ergebnis nach einem Reload. |
+| Roulette-Spielrunde | Integration, Komponente und E2E | Einsatz 1–100 und Farbwahl Rot/Schwarz; der Server bestimmt Ergebnis (0–36), zentrale Rot/Schwarz/Grün-Zuordnung, Gewinnstatus (Treffer = `+1×Einsatz`, sonst `−Einsatz`), genau eine `GameRound` und eine passende `CreditTransaction`. Ein produktionsnaher Browserlauf bestätigt das Ergebnis nach einem Reload. |
+| Idempotente Spielrunden | Integration | Eine identische Wiederholung derselben `requestId` gibt für Dice und Roulette das ursprüngliche Ergebnis mit `replayed: true` zurück, ohne erneuten Zufallszug oder zweite Mutation. |
+| Leaderboard | Integration und E2E | Konten werden nach Creditstand absteigend dargestellt, Gleichstände teilen sich den Rang und werden nach Anzeigename geordnet; das eigene Konto ist markiert und keine Zugangsdaten werden ausgegeben. |
+| REST-API | Integration und E2E | `GET /api/v1/users/me`, `GET /api/v1/leaderboard`, `GET`/`POST /api/v1/game-rounds` und `DELETE /api/v1/sessions/current` liefern sichere DTOs, korrekte Erfolgsstatus (200/201/204) und dispatchen Dice- sowie Roulette-Runden über dieselben Anwendungsservices wie die Server Actions. |
+| Same-Origin-Schutz der Registrierung | Integration | Die Registrierungs-Server-Action prüft Origin und `Sec-Fetch-Site` wie Anmeldung, Logout, Dice und Roulette, bevor Eingaben verarbeitet werden. |
+| Rate-Limiting | Unit und Integration | Ein deterministischer, injizierbarer Fixed-Window-Limiter erlaubt eine konfigurierte Anzahl Versuche pro Zeitfenster, blockiert danach mit korrektem `Retry-After`, setzt pro Schlüssel isoliert zurück und begrenzt die Anzahl gleichzeitig verfolgter Schlüssel. Login, Registrierung sowie Dice- und Roulette-Aktionen (Server Action und REST-API mit gemeinsamem Kontingent) geben bei Überschreitung eine sichere Fehlermeldung beziehungsweise `429` mit `Retry-After` zurück, ohne die geschützte Aktion aufzurufen. |
 
 ## Negative und Grenzfälle, implementiert und verifiziert
 
@@ -40,20 +47,20 @@ Unit Tests prüfen reine Regeln, Komponententests die Browserinteraktion, Integr
 | Manipulierter Auth-Request | Integration | Zusätzliche Login- oder Logout-Felder, eine fehlende oder fremde Origin und ein unzulässiger `Sec-Fetch-Site`-Wert werden sicher abgelehnt. |
 | Same-Origin-Mutation | Integration | Eine unsichere HTTP-Methode wird nur mit exakt passender Origin, zulässigem Fetch-Site-Nachweis und gültiger aktueller Sitzung autorisiert. |
 | Unicode-Zeichenlänge bei Passwort und Anzeigename | Integration und E2E | Passwort und Anzeigename werden serverseitig nach Unicode-Codepoints (`Array.from(...).length`) statt UTF-16-Codeeinheiten geprüft; das Formular begrenzt die Länge nicht mehr clientseitig, damit mehrteilige Zeichen wie Emoji nicht vor der Serverprüfung stillschweigend abgeschnitten werden. Ein 128-Codepoint-Passwort und ein 40-Codepoint-Anzeigename aus Emoji durchlaufen Registrierung und Anmeldung unverändert. |
+| Ungültige Dice-/Roulette-Einsätze | Integration | Null, negative, nicht ganzzahlige oder über der Obergrenze liegende Einsätze sowie eine ungültige Roulette-Farbwahl werden ohne Zufallszug und ohne Mutation abgelehnt. |
+| Unbezahlbarer Einsatz | Integration | Ein formal gültiger Einsatz über dem aktuellen Creditstand wird ohne Zufallszug abgelehnt. |
+| Konfligierende Request-ID | Integration | Dieselbe `requestId` mit abweichendem Einsatz oder abweichender Auswahl wird abgelehnt, ohne den ursprünglichen Zustand zu verändern. |
+| Atomarer Schreibfehler bei Dice/Roulette | Integration | Ein simulierter Fehler beim atomaren Schreiben lässt Konto, Saldo, Runden und Idempotenzbindung unverändert. |
+| Nicht authentifizierte oder clientseitig autoritäre Spielaktion | Integration | Fehlende Sitzung wird abgelehnt; vom Client mitgesendete Konto-ID, Ergebnis, Auszahlung oder Endstand werden vor jeder Verarbeitung verworfen. |
+| Rate-Limit-Überschreitung | Unit und Integration | Nach Erreichen des Schwellwerts liefert die REST-API `429` mit numerischem `Retry-After`; Login, Registrierung, Dice und Roulette geben über die jeweilige Server Action eine sichere Fehlermeldung zurück, ohne die geschützte Aktion aufzurufen. |
+| Unbegrenztes Anfrage-Volumen | Integration | Eine `Content-Length` oberhalb des zulässigen Limits wird vor dem vollständigen Einlesen des Anfrage-Bodys abgelehnt. |
 
-Die aktuelle Vitest-Suite ist erfolgreich. Die vollständige Projektprüfung umfasste zusätzlich Lint, strenge Typprüfung, Produktionsbuild und die Playwright-Abläufe für Landingpage, Registrierung sowie Anmeldung, Schutz und Logout. Tests verwenden isolierte Store-Instanzen und injizierbare Abhängigkeiten; eine Produktions-Reset-Route existiert nicht.
+Die aktuelle Vitest-Suite ist erfolgreich. Die vollständige Projektprüfung umfasste zusätzlich Lint, strenge Typprüfung, Produktionsbuild und die Playwright-Abläufe für Landingpage, Registrierung, Anmeldung, Schutz, Logout, Dice, Roulette, Rangliste und die REST-API. Tests verwenden isolierte Store-Instanzen und injizierbare Abhängigkeiten; eine Produktions-Reset-Route existiert nicht.
 
-## Geplante Testfälle
+## Bewusst nicht umgesetzt
 
-| Bereich | Positive Fälle | Negative und Grenzfälle |
-| --- | --- | --- |
-| Dice-Spielrunde | Eine gültige Runde erzeugt ein serverseitiges Ergebnis, eine Runde, eine passende Credittransaktion und den korrekten neuen Stand. | Ungültige oder unbezahlbare Einsätze, manipulierte Ergebnisse und konkurrierende Ausgaben erzeugen keinen Teilzustand oder negativen Stand. Konkrete Fälle folgen aus den noch festzulegenden Spielregeln. |
-| Leaderboard | Konten werden nachvollziehbar nach Credits dargestellt. | Zugangsdaten und Sitzungsinformationen fehlen; Gleichstände werden reproduzierbar behandelt. |
-| REST-API | GET-, POST- und DELETE-Ressourcen liefern sichere DTOs und passende Erfolgsstatus. | Ungültige Eingaben, fehlende Authentifizierung oder Berechtigung und interne Fehler liefern sichere Fehler ohne Teilwrites. |
-| Roulette-Zielumfang | Rot/Schwarz-Runden verwenden dieselben Credit- und Atomaritätsregeln wie Dice, behalten aber eigenständige Spielregeln. | Null, ungültige Auswahl, manipulierte Ergebnisse und doppelte Requests werden nach dem später festgelegten Vertrag sicher behandelt. |
-
-Geplante Fälle gelten erst nach Implementierung und erfolgreicher Ausführung als verifiziert.
+Eine persönliche Spielhistorie (`/history`), Reveal-Animationen und optionales lokales Audio sind nicht implementiert und haben daher keine Testfälle. Sie gelten erst nach tatsächlicher Umsetzung als verifizierbar; es werden keine Platzhalter-Testfälle für nicht vorhandene Funktionen geführt.
 
 ## TDD-Nachweis
 
-Registrierung und Authentifizierung wurden jeweils vor der Produktivimplementierung in einem eigenen RED-Commit festgelegt. Die Tests kompilierten und scheiterten an den erwarteten fachlichen Assertions. Der jeweilige GREEN-Slice implementierte das Verhalten und machte dieselben Verträge erfolgreich. Weitere vertikale Slices sollen diese Trennung beibehalten.
+Registrierung, Authentifizierung, Dice und Roulette wurden jeweils vor der Produktivimplementierung in einem eigenen RED-Commit festgelegt. Die Tests kompilierten und scheiterten an den erwarteten fachlichen Assertions statt an fehlenden Importen. Der jeweilige GREEN-Slice implementierte das Verhalten und machte dieselben Verträge erfolgreich, ohne die RED-Testfälle nachträglich abzuschwächen. Roulette übernahm dabei die bereits verifizierten Atomaritäts-, Ledger- und Idempotenzinvarianten von Dice und testete nur roulettespezifisches Verhalten erneut.

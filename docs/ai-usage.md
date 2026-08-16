@@ -91,6 +91,22 @@ KI wurde als Werkzeug für Strukturierung, Entwürfe, Implementierungsunterstüt
 - **Menschliche Entscheidung:** Der Studierende gab die vollständige Polier-Checkliste vor (Hierarchie, Formulare/Fehler, Navigation, mobile Nutzbarkeit, Tastaturfokus, Semantik, keine reine Farbcodierung, Grid/Flexbox) sowie die Einschränkung auf CSS Modules und bestehende Atome.
 - **Ergebnis und Grenzen:** Die optionalen Bereiche Spielverlauf (`/history`) und Animation/Audio wurden bewusst nicht umgesetzt und warten auf eine gesonderte Freigabe.
 
+## AUDIT A5: technisches Vorab-Dokumentations-Gate
+
+- **Zweck:** Vor der abschließenden Dokumentationsarbeit unabhängig prüfen, ob alle zehn Implementierungskriterien, der offizielle Funktionskern, Sicherheitsbefunde, Routenerreichbarkeit, serverseitige Autorität über Credits/Ergebnisse und der Zielumfang (Dice und Roulette) erfüllt sind.
+- **Betroffener Bereich:** Ein schreibgeschützter, unabhängiger Review-Agent prüfte alle zehn Kriterien (Unit Tests, Agents & Skills, Codequalität, Server-/Client-Rendering, API, Server Actions, Funktionalität, Struktur, Props/kontrollierter Zustand, CSS Grid/Flexbox) sowie Datenlecks, clientseitige Autorität, Routenerreichbarkeit und den Laufzeit-Persistenznachweis anhand von Datei- und Testnamen; keine Datei wurde dabei verändert.
+- **Technische Validierung:** Lint, strenge Typprüfung, die vollständige Vitest-Suite (165 Tests, 25 Dateien), der Produktionsbuild mit allen 9 Playwright-Abläufen sowie `npm audit`/`--omit=dev` (0 Schwachstellen) waren erfolgreich; ein manueller Codepoint-Scan bestätigte, dass das einzige `any`-Vorkommen im Repository ein englisches Wort in einem Prosakommentar ist, kein TypeScript-Typ.
+- **Menschliche Entscheidung:** Der Studierende forderte die Prüfung explizit an; die Befunde wurden ausschließlich im Chat mitgeteilt statt in `docs/reviews/A5-technical.md`.
+- **Ergebnis und Grenzen:** Endergebnis „READY FOR DOCUMENTATION“, keine Blocker. Eine Minor-Beobachtung (Dice-/Roulette-Gewinnlogik ist nur auf Integrations-, nicht auf Unit-Ebene isoliert getestet) wurde festgehalten, ohne sie in dieser Prüfung selbst zu beheben.
+
+## Dokumentationssynchronisierung nach AUDIT A5
+
+- **Zweck:** `requirements.md`, `technical-concept.md`, `ui-concept.md` und `test-cases.md` nach dem erreichten „READY FOR DOCUMENTATION“-Stand mit dem tatsächlichen Code- und Teststand abgleichen, wie es der Prüfpunkt nach AUDIT A5 vorsieht.
+- **Betroffener Bereich:** Alle vier Dokumente: Status von Dice, Roulette, Leaderboard und REST-API von „geplant“ auf „verifiziert“ aktualisiert; Datenmodell um den `GameRound`-Union-Typ und die spielspezifischen Transaktionsgründe ergänzt; Schnittstellenbeschreibung um Dice-/Roulette-Server-Actions und die implementierte REST-API erweitert; Sicherheitsabschnitt um Rate-Limiting, Security-Header und begrenztes Body-Lesen ergänzt; Komponentenbaum, Seitenübersicht, Grid-/Flexbox-Nachweis und Gestaltungsrichtung an den aktuellen UI-Stand angepasst; Testfälle für Dice, Roulette, Leaderboard, REST-API und Rate-Limiting von „geplant“ nach „implementiert und verifiziert“ verschoben.
+- **Technische Validierung:** Alle Änderungen sind reine Dokumentationsangaben, gegen den tatsächlichen Code, die Testdateien und die zuvor in diesem Dokument protokollierten Prüfungen abgeglichen; `git diff --check` war für alle vier Dateien unauffällig.
+- **Menschliche Entscheidung:** Der Studierende bat ausdrücklich um die Aktualisierung, nachdem er festgestellt hatte, dass die Dokumente veraltet waren.
+- **Ergebnis und Grenzen:** `/history`, Animationen und Audio bleiben in allen vier Dokumenten ausdrücklich als bewusst nicht umgesetzt gekennzeichnet; es wurden keine Platzhalter für diese Bereiche ergänzt.
+
 ## Menschliche Steuerung und Prüfung
 
 KI-Vorschläge wurden nicht automatisch übernommen. Der Studierende formulierte Anforderungen und konkrete Umsetzungsvorgaben, überprüfte den erzeugten Code und die Diffs, bewertete Test- und Buildnachweise und leitete daraus Korrekturen ab. Er reduzierte übergroße oder bewertungsferne Vorschläge, bestimmte die Trennung der Entwicklungsphasen und Commitgrenzen und traf die abschließenden Entscheidungen über Funktionsumfang, Architektur, Dokumentationsstruktur und Freigabe.

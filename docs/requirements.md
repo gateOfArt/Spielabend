@@ -12,12 +12,12 @@ Dieses Dokument beschreibt den verbindlichen Projektumfang und seinen aktuellen 
 | --- | --- | --- |
 | Registrierung | Eine Person kann mit Anzeigename, E-Mail-Adresse und Passwort genau ein Konto anlegen. Ungültige Eingaben und bereits verwendete normalisierte E-Mail-Adressen werden sicher abgelehnt. | Verifiziert |
 | Anmeldung | Gültige Zugangsdaten erzeugen eine serverseitig prüfbare Sitzung; ungültige Zugangsdaten werden neutral abgelehnt. | Verifiziert |
-| Virtuelle Credits | Neue Konten erhalten genau einmal das zentrale Startguthaben. Der aktuelle Stand ist im geschützten Bereich sichtbar und wird durch spätere Spielrunden konsistent verändert. | Startguthaben und Anzeige verifiziert; Spieländerungen geplant |
-| Spielseite | Mindestens eine geschützte Spielseite führt eine vollständige, serverseitig entschiedene Runde aus und zeigt Ergebnis sowie neuen Creditstand. | Dice als Kernspiel geplant; Regeln noch nicht festgelegt |
-| Leaderboard | Eine erreichbare Rangliste sortiert Konten nachvollziehbar nach ihrem Creditstand und enthält keine privaten Zugangsdaten. | Geplant |
-| Laufzeitdaten | Konto-, Sitzungs-, Credit- und Spieldaten bleiben im selben laufenden Serverprozess verfügbar. | Konten, Sitzungen, Credits und Starttransaktionen verifiziert; Spieldaten geplant |
-| Navigation | Alle implementierten Hauptbereiche sind über echte Links oder Schaltflächen erreichbar. | Für Einstieg, Registrierung, Anmeldung, Lobby und Logout verifiziert |
-| Logout | Die aktuelle Sitzung wird serverseitig ungültig. Konto-, Credit- und Spieldaten bleiben für eine spätere Anmeldung im selben Prozess erhalten. | Für Konto, Credits und Starttransaktion verifiziert; Spieldaten geplant |
+| Virtuelle Credits | Neue Konten erhalten genau einmal das zentrale Startguthaben. Der aktuelle Stand ist im geschützten Bereich sichtbar und wird durch Spielrunden konsistent verändert. | Verifiziert, einschließlich Dice- und Roulette-Abrechnung |
+| Spielseite | Mindestens eine geschützte Spielseite führt eine vollständige, serverseitig entschiedene Runde aus und zeigt Ergebnis sowie neuen Creditstand. | Verifiziert für Dice und Roulette; beide Spiele serverautoritativ und atomar abgerechnet |
+| Leaderboard | Eine erreichbare Rangliste sortiert Konten nachvollziehbar nach ihrem Creditstand und enthält keine privaten Zugangsdaten. | Verifiziert |
+| Laufzeitdaten | Konto-, Sitzungs-, Credit- und Spieldaten bleiben im selben laufenden Serverprozess verfügbar. | Verifiziert, einschließlich Spielrunden und Credittransaktionen |
+| Navigation | Alle implementierten Hauptbereiche sind über echte Links oder Schaltflächen erreichbar. | Verifiziert für Einstieg, Registrierung, Anmeldung, Lobby, Dice, Roulette, Rangliste und Logout |
+| Logout | Die aktuelle Sitzung wird serverseitig ungültig. Konto-, Credit- und Spieldaten bleiben für eine spätere Anmeldung im selben Prozess erhalten. | Verifiziert, einschließlich Spielrunden |
 
 ## Registrierung und Startguthaben
 
@@ -36,7 +36,7 @@ Dieses Dokument beschreibt den verbindlichen Projektumfang und seinen aktuellen 
 - Passwörter werden über Argon2id sicher verglichen. Auch bei einer unbekannten E-Mail-Adresse findet ein Vergleich mit einem Dummy-Hash statt.
 - Eine erfolgreiche Anmeldung erzeugt ein kryptografisch zufälliges, undurchsichtiges Sitzungstoken mit fester Ablaufzeit von acht Stunden. Im Store wird nur dessen SHA-256-Hash gespeichert.
 - Das Sitzungscookie ist `HttpOnly`, gilt für den Pfad `/`, verwendet `SameSite=Lax`, besitzt die Sitzungsablaufzeit und ist im Produktionsbetrieb `Secure`.
-- Der Proxy prüft bei der Navigation zur Lobby nur, ob ein Cookie vorhanden ist. Die geschützte Seite und jede geschützte Mutation prüfen die Sitzung erneut serverseitig.
+- Der Proxy prüft bei der Navigation zu allen geschützten Bereichen (Lobby, Dice, Roulette, Rangliste) nur, ob ein Cookie vorhanden ist. Die geschützte Seite und jede geschützte Mutation prüfen die Sitzung erneut serverseitig.
 - Cookie-authentifizierte Mutationen benötigen eine exakt passende Origin. Ein vorhandener `Sec-Fetch-Site`-Wert muss `same-origin` sein.
 - Logout widerruft nur die aktuelle Sitzung und lässt weitere Sitzungen sowie Konto, Credits und Credittransaktionen unverändert. Wiederholter Logout wird sicher behandelt und das Cookie wird abgelaufen gesetzt.
 
@@ -45,17 +45,18 @@ Dieses Dokument beschreibt den verbindlichen Projektumfang und seinen aktuellen 
 - Das Projekt verwendet Next.js 16.3.1 mit App Router, React 19.2.4 und strengem TypeScript.
 - Server Components sind der Standard. Client Components werden nur für notwendige Browserinteraktion eingesetzt und erhalten minimale, serialisierbare Props.
 - Externe Eingaben werden serverseitig validiert. Identität, Berechtigung, Spielausgang und Credits bleiben serverautoritativ.
-- Die eigene Oberfläche verwendet Server Actions. Registrierung, Anmeldung und Logout sind implementiert. Zusätzlich ist eine ressourcenorientierte HTTP/JSON-API mit sinnvollen GET-, POST- und DELETE-Operationen vorgesehen, aber noch nicht umgesetzt.
+- Die eigene Oberfläche verwendet Server Actions für Registrierung, Anmeldung, Logout, Dice und Roulette. Zusätzlich ist eine ressourcenorientierte HTTP/JSON-API mit GET-, POST- und DELETE-Operationen implementiert und verifiziert.
 - Der aktuelle Datenspeicher gilt nur für einen einzelnen laufenden Node-Prozess. Eine reale Datenbank und Mehrinstanzbetrieb sind nicht implementiert.
+- Ein prozesslokaler, deterministischer Rate-Limiter begrenzt Anmelde-, Registrierungs- und authentifizierte Spielversuche; er schützt keine Mehrinstanzbereitstellung.
 - Wiederverwendbare Komponenten verwenden typisierte Props. Interaktive Formulare können kontrollierten Zustand verwenden, ohne Browserdaten zur fachlichen Wahrheit zu machen.
 - Komponentenstile liegen in CSS Modules. Grid und Flexbox werden passend zur jeweiligen Anordnung eingesetzt.
 - Positive, negative und Grenzfälle werden auf der niedrigsten geeigneten Testebene geprüft. Produktions-Testendpunkte und Sicherheitsumgehungen sind ausgeschlossen.
 
 ## Projektumfang
 
-Implementiert sind die technische Grundlage, die Testinfrastruktur, die UI-Basiskomponenten, Registrierung mit atomarem Startguthaben sowie Anmeldung, serverseitige Sitzungen, geschützte Lobby, Creditdarstellung, Navigation und Logout. Zum geplanten Kern gehören Dice als vollständiges Kernspiel, Leaderboard und REST-API.
+Implementiert und verifiziert sind die technische Grundlage, die Testinfrastruktur, die UI-Basiskomponenten, Registrierung mit atomarem Startguthaben, Anmeldung mit serverseitigen Sitzungen, geschützte Lobby, Creditdarstellung, Navigation, Logout, die beiden Kernspiele Dice und Roulette, das Leaderboard und die ressourcenorientierte REST-API. Damit ist sowohl der verpflichtende Kernumfang als auch der Zielumfang (Dice und Roulette mit nachweislich wiederverwendeter Spiel- und Creditarchitektur) erreicht.
 
-Roulette ist nach abgeschlossenem Kern der vorgesehene Zielumfang, um die Wiederverwendung der Spiel- und Creditarchitektur zu zeigen. Eine persönliche Spielhistorie bleibt nachrangig. Animationen, lokales Audio und dekorative Effekte werden erst nach technischer und dokumentarischer Fertigstellung erwogen.
+Eine persönliche Spielhistorie (`/history`) bleibt nachrangig und ist bewusst noch nicht umgesetzt. Animationen, lokales Audio und dekorative Effekte werden erst nach technischer und dokumentarischer Fertigstellung erwogen und sind ebenfalls noch nicht umgesetzt.
 
 OAuth, E-Mail-Verifikation, Passwort-Reset, Mehrfaktor-Authentifizierung, Echtgeld, Zahlungen, eine reale Datenbank, WebSockets, Multiplayer, Chat, ein drittes Spiel, ein Adminbereich und eine Microservice-Implementierung gehören nicht zum aktuellen Umfang.
 

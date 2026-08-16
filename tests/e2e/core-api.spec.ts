@@ -86,7 +86,7 @@ test("serves the protected core API through the production server", async ({
     {
       method: "POST",
       body: {
-        game: "ROULETTE",
+        game: "POKER",
         requestId: randomUUID(),
         input: { bet: 10, prediction: "red" },
       },

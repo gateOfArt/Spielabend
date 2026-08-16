@@ -20,6 +20,17 @@ const round = {
   finalCredits: 150,
 };
 
+const rouletteRound = {
+  requestId: REQUEST_ID,
+  bet: 10,
+  selection: "RED" as const,
+  result: 1,
+  color: "RED" as const,
+  outcome: "win" as const,
+  netDelta: 10,
+  finalCredits: 110,
+};
+
 interface RequestOptions {
   readonly method?: "GET" | "POST" | "DELETE";
   readonly body?: unknown;
@@ -64,6 +75,14 @@ function validDiceBody() {
     game: "DICE",
     requestId: REQUEST_ID,
     input: { bet: 10, prediction: 4 },
+  };
+}
+
+function validRouletteBody() {
+  return {
+    game: "ROULETTE",
+    requestId: REQUEST_ID,
+    input: { bet: 10, selection: "RED" },
   };
 }
 
@@ -146,12 +165,18 @@ function createSubject(overrides: Partial<CoreApiHandlerProps> = {}) {
       Promise.resolve({ ok: true, replayed: false, round }),
     ),
   };
+  const rouletteRoundService: CoreApiHandlerProps["rouletteRoundService"] = {
+    play: vi.fn<CoreApiHandlerProps["rouletteRoundService"]["play"]>(() =>
+      Promise.resolve({ ok: true, replayed: false, round: rouletteRound }),
+    ),
+  };
   const props: CoreApiHandlerProps = {
     authenticationService,
     currentUserQueryService,
     leaderboardQueryService,
     gameRoundQueryService,
     diceRoundService,
+    rouletteRoundService,
     ...overrides,
   };
 
@@ -292,10 +317,74 @@ describe("core resource-oriented API handlers", () => {
     expect(response.status).toBe(200);
   });
 
+  it("dispatches an allowed Roulette round and returns 201", async () => {
+    const subject = createSubject();
+
+    const response = await subject.handlers.postGameRound(
+      apiRequest("/api/v1/game-rounds", {
+        method: "POST",
+        headers: validMutationHeaders(),
+        body: validRouletteBody(),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      data: { round: { game: "ROULETTE", ...rouletteRound } },
+    });
+    expect(subject.props.rouletteRoundService.play).toHaveBeenCalledWith(
+      SESSION_TOKEN,
+      { requestId: REQUEST_ID, bet: 10, selection: "RED" },
+    );
+  });
+
+  it("returns 200 for an idempotently replayed Roulette round", async () => {
+    const rouletteRoundService: CoreApiHandlerProps["rouletteRoundService"] = {
+      play: vi.fn<CoreApiHandlerProps["rouletteRoundService"]["play"]>(() =>
+        Promise.resolve({ ok: true, replayed: true, round: rouletteRound }),
+      ),
+    };
+    const subject = createSubject({ rouletteRoundService });
+
+    const response = await subject.handlers.postGameRound(
+      apiRequest("/api/v1/game-rounds", {
+        method: "POST",
+        headers: validMutationHeaders(),
+        body: validRouletteBody(),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it.each([
+    ["INVALID_INPUT", 422, "INVALID_REQUEST"],
+    ["INSUFFICIENT_CREDITS", 422, "INVALID_REQUEST"],
+    ["REQUEST_CONFLICT", 409, "REQUEST_CONFLICT"],
+    ["ROUND_FAILED", 500, "REQUEST_FAILED"],
+  ] as const)("maps Roulette %s safely", async (serviceCode, status, apiCode) => {
+    const rouletteRoundService: CoreApiHandlerProps["rouletteRoundService"] = {
+      play: vi.fn<CoreApiHandlerProps["rouletteRoundService"]["play"]>(() =>
+        Promise.resolve({ ok: false, code: serviceCode }),
+      ),
+    };
+    const subject = createSubject({ rouletteRoundService });
+
+    const response = await subject.handlers.postGameRound(
+      apiRequest("/api/v1/game-rounds", {
+        method: "POST",
+        headers: validMutationHeaders(),
+        body: validRouletteBody(),
+      }),
+    );
+
+    await expectProblem(response, status, apiCode);
+  });
+
   it.each([
     {
       label: "unsupported game",
-      body: { ...validDiceBody(), game: "ROULETTE" },
+      body: { ...validDiceBody(), game: "POKER" },
     },
     {
       label: "client-selected authority",
@@ -321,6 +410,7 @@ describe("core resource-oriented API handlers", () => {
 
     await expectProblem(response, 422, "INVALID_REQUEST");
     expect(subject.props.diceRoundService.play).not.toHaveBeenCalled();
+    expect(subject.props.rouletteRoundService.play).not.toHaveBeenCalled();
   });
 
   it("rejects malformed JSON with the shared problem shape", async () => {

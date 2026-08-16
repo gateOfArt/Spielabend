@@ -3,10 +3,12 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { DICE_RULE } from "@/server/services/dice-round.contract";
+import { ROULETTE_RULE } from "@/server/services/roulette-round.contract";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 import type { AuthenticationSessionService } from "@/server/auth/authentication.contract";
 import { createMutationRequestEvidence } from "@/server/auth/request-security";
 import type { DiceRoundService } from "@/server/services/dice-round.contract";
+import type { RouletteRoundService } from "@/server/services/roulette-round.contract";
 import {
   currentUserQueryService,
   type CurrentUserQueryService,
@@ -21,6 +23,7 @@ import {
 } from "@/server/services/leaderboard-query";
 import { authenticationSessionService } from "@/server/services/authentication-session";
 import { diceRoundService } from "@/server/services/dice-round";
+import { rouletteRoundService } from "@/server/services/roulette-round";
 import {
   hasValidEmptyQuery,
   jsonResponse,
@@ -30,7 +33,7 @@ import {
 
 const MAX_JSON_BODY_LENGTH = 8_192;
 
-const gameRoundPostSchema = z.strictObject({
+const diceGameRoundPostSchema = z.strictObject({
   game: z.literal("DICE"),
   requestId: z.uuidv4(),
   input: z.strictObject({
@@ -46,6 +49,24 @@ const gameRoundPostSchema = z.strictObject({
       .max(DICE_RULE.maximumFace),
   }),
 });
+
+const rouletteGameRoundPostSchema = z.strictObject({
+  game: z.literal("ROULETTE"),
+  requestId: z.uuidv4(),
+  input: z.strictObject({
+    bet: z
+      .number()
+      .int()
+      .min(ROULETTE_RULE.minimumBet)
+      .max(ROULETTE_RULE.maximumBet),
+    selection: z.enum(["RED", "BLACK"]),
+  }),
+});
+
+const gameRoundPostSchema = z.discriminatedUnion("game", [
+  diceGameRoundPostSchema,
+  rouletteGameRoundPostSchema,
+]);
 
 const emptyBodySchema = z.strictObject({});
 const notFoundParamsSchema = z.strictObject({
@@ -71,6 +92,7 @@ export interface CoreApiHandlerProps {
   readonly leaderboardQueryService: Pick<LeaderboardQueryService, "read">;
   readonly gameRoundQueryService: Pick<GameRoundQueryService, "read">;
   readonly diceRoundService: DiceRoundService;
+  readonly rouletteRoundService: RouletteRoundService;
 }
 
 export interface CoreApiHandlers {
@@ -274,14 +296,21 @@ export function createCoreApiHandlers(
         return problemResponse(422, "INVALID_REQUEST");
       }
 
-      const result = await props.diceRoundService.play(
-        authorization.sessionToken,
-        {
-          requestId: validation.data.requestId,
-          bet: validation.data.input.bet,
-          prediction: validation.data.input.prediction,
-        },
-      );
+      const result =
+        validation.data.game === "DICE"
+          ? await props.diceRoundService.play(authorization.sessionToken, {
+              requestId: validation.data.requestId,
+              bet: validation.data.input.bet,
+              prediction: validation.data.input.prediction,
+            })
+          : await props.rouletteRoundService.play(
+              authorization.sessionToken,
+              {
+                requestId: validation.data.requestId,
+                bet: validation.data.input.bet,
+                selection: validation.data.input.selection,
+              },
+            );
 
       if (!result.ok) {
         switch (result.code) {
@@ -298,7 +327,11 @@ export function createCoreApiHandlers(
       }
 
       return jsonResponse(
-        { data: { round: { game: "DICE", ...result.round } } },
+        {
+          data: {
+            round: { game: validation.data.game, ...result.round },
+          },
+        },
         result.replayed ? 200 : 201,
       );
     } catch {
@@ -378,4 +411,5 @@ export const coreApiHandlers = createCoreApiHandlers({
   leaderboardQueryService,
   gameRoundQueryService,
   diceRoundService,
+  rouletteRoundService,
 });

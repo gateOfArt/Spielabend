@@ -20,18 +20,30 @@ export default async function LobbyPage() {
         <Card as="section" aria-labelledby="credits-title">
           <h2 id="credits-title">Dein Guthaben</h2>
           <p className={styles.credits}>{user.credits} Credits</p>
-          <div className={styles.areaLinks}>
-            <Link className={styles.areaLink} href="/dice">
-              Dice spielen
-            </Link>
-            <Link className={styles.areaLink} href="/roulette">
-              Roulette spielen
-            </Link>
-            <Link className={styles.areaLink} href="/leaderboard">
-              Rangliste ansehen
-            </Link>
-          </div>
         </Card>
+
+        <section aria-labelledby="areas-title">
+          <h2 id="areas-title" className={styles.areasTitle}>
+            Bereiche
+          </h2>
+          <ul className={styles.areaLinks}>
+            <li>
+              <Link className={styles.areaLink} href="/dice">
+                Dice spielen
+              </Link>
+            </li>
+            <li>
+              <Link className={styles.areaLink} href="/roulette">
+                Roulette spielen
+              </Link>
+            </li>
+            <li>
+              <Link className={styles.areaLink} href="/leaderboard">
+                Rangliste ansehen
+              </Link>
+            </li>
+          </ul>
+        </section>
       </main>
     </div>
   );

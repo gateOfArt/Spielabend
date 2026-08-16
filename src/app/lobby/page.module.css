@@ -41,19 +41,46 @@
   font-weight: 750;
 }
 
+.areasTitle {
+  margin-bottom: 0.75rem;
+  font-size: 1.125rem;
+}
+
 .areaLinks {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 1rem;
-  margin-top: 0.5rem;
+  list-style: none;
 }
 
 .areaLink {
-  color: var(--primary);
+  display: flex;
+  align-items: center;
+  min-height: 3.25rem;
+  padding: 1rem 1.25rem;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
   font-weight: 700;
+  transition: border-color 150ms ease, color 150ms ease;
 }
 
 .areaLink:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .areaLink:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .areaLink {
+    transition: none;
+  }
 }

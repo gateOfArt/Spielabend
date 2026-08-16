@@ -1,34 +1,41 @@
+/*
+ * Modern Night Casino / Premium Arcade: one restrained gold accent on a
+ * warm neutral base, in both a daylight and a dark ("night table") variant.
+ * Both follow the user's system preference; neither is the default look.
+ */
 :root {
-  --background: #f7f7f5;
-  --foreground: #171717;
-  --surface: #ffffff;
-  --muted: #5f6368;
-  --border: #c9ccd1;
-  --primary: #2f5bea;
-  --primary-hover: #2448bd;
-  --on-primary: #ffffff;
-  --secondary: #e8eaf0;
-  --secondary-hover: #d8dbe4;
-  --focus: #8b5cf6;
-  --danger: #b42318;
+  --background: #f6f2e9;
+  --foreground: #201a12;
+  --surface: #fffdf8;
+  --muted: #6b6152;
+  --border: #ddd2ba;
+  --primary: #8a5a00;
+  --primary-hover: #6e4700;
+  --on-primary: #fffaf0;
+  --secondary: #efe6d3;
+  --secondary-hover: #e4d8bd;
+  --focus: #5b3df0;
+  --danger: #a3242f;
+  --shadow-card: 0 0.5rem 1.5rem rgb(32 26 18 / 10%);
   --radius-control: 0.5rem;
   --radius-card: 0.75rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #101114;
-    --foreground: #f5f5f5;
-    --surface: #1b1d22;
-    --muted: #b7bbc4;
-    --border: #4b4f58;
-    --primary: #8eabff;
-    --primary-hover: #afc2ff;
-    --on-primary: #111827;
-    --secondary: #2b2e35;
-    --secondary-hover: #3a3e47;
+    --background: #0d0c09;
+    --foreground: #f3ecd9;
+    --surface: #17140d;
+    --muted: #ab9f86;
+    --border: #34301f;
+    --primary: #e3b23c;
+    --primary-hover: #f2c765;
+    --on-primary: #1a1509;
+    --secondary: #221d10;
+    --secondary-hover: #2f2a1b;
     --focus: #c4b5fd;
-    --danger: #ff9b91;
+    --danger: #ff6b5b;
+    --shadow-card: 0 0.75rem 2rem rgb(0 0 0 / 45%);
   }
 }
 
@@ -48,9 +55,14 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 * {

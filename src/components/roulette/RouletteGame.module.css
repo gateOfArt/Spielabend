@@ -8,17 +8,24 @@
 
 .balance {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .balance strong {
+  padding: 0.375rem 0.875rem;
   color: var(--primary);
-  font-size: 1.5rem;
+  border-radius: 999px;
+  background: var(--secondary);
+  font-size: 1.125rem;
+  font-weight: 750;
 }
 
 .controls,
@@ -48,11 +55,23 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--surface);
+  font-weight: 600;
+  transition: border-color 150ms ease;
+}
+
+.selectionOption:has(input:checked) {
+  border-color: var(--primary);
 }
 
 .selectionOption:has(input:focus-visible) {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selectionOption {
+    transition: none;
+  }
 }
 
 .fieldError,
@@ -63,12 +82,14 @@
 }
 
 .result {
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+  padding: 1.25rem;
+  border-radius: var(--radius-card);
+  background: var(--secondary);
 }
 
 .resultStatus {
   color: var(--muted);
+  font-weight: 600;
 }
 
 .resultGrid div {

@@ -4,7 +4,6 @@
   min-height: 100vh;
   place-items: center;
   padding: 2rem;
-  font-family: var(--font-geist-sans);
 }
 
 .intro {
@@ -13,9 +12,9 @@
 
 .eyebrow {
   margin-bottom: 0.75rem;
-  color: var(--muted);
+  color: var(--primary);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -42,11 +41,11 @@
 }
 
 .actions a {
-  padding: 0.625rem 1rem;
-  color: var(--on-primary);
+  padding: 0.625rem 1.125rem;
+  border: 1px solid transparent;
   border-radius: var(--radius-control);
-  background: var(--primary);
   font-weight: 650;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
 .actions a:focus-visible {
@@ -54,8 +53,29 @@
   outline-offset: 3px;
 }
 
+.primaryAction {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.secondaryAction {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: transparent;
+}
+
 @media (hover: hover) {
-  .actions a:hover {
+  .primaryAction:hover {
     background: var(--primary-hover);
+  }
+
+  .secondaryAction:hover {
+    background: var(--secondary-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actions a {
+    transition: none;
   }
 }

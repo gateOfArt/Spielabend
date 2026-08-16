@@ -2,6 +2,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border);
@@ -11,6 +12,14 @@
 .brand {
   color: var(--primary);
   font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.link {
+  display: inline-block;
+  padding: 0.375rem 0.125rem;
+  color: var(--foreground);
+  font-weight: 650;
 }
 
 .link:focus-visible {
@@ -18,42 +27,58 @@
   outline-offset: 3px;
 }
 
+@media (hover: hover) {
+  .link:hover {
+    color: var(--primary);
+  }
+}
+
 .links {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.link {
-  font-weight: 650;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  list-style: none;
 }
 
 .account {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.identity {
   color: var(--muted);
   font-size: 0.9375rem;
 }
 
-.identity {
-  display: grid;
-  gap: 0.125rem;
+.creditsChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  color: var(--primary);
+  border-radius: 999px;
+  background: var(--secondary);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.identity strong {
-  color: var(--foreground);
+.creditsLabel {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 @media (max-width: 36rem) {
-  .navigation,
-  .account {
+  .navigation {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .links {
-    flex-wrap: wrap;
+  .account {
+    justify-content: space-between;
   }
 }

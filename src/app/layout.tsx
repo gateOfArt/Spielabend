@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Spieleabend",
-  description: "University project Spieleabend",
+  description: "Universitätsprojekt Spieleabend",
 };
 
 export default function RootLayout({

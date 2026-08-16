@@ -6,10 +6,17 @@ import type { NextConfig } from "next";
  * per-request nonce through the render pipeline. This still blocks
  * loading scripts/styles/frames from third-party origins, which is the
  * realistic threat for this app (no CDN or third-party embeds are used).
+ *
+ * 'unsafe-eval' is added to `script-src` only outside production: Next.js
+ * dev tooling (Turbopack HMR, React's dev-mode call-stack reconstruction)
+ * relies on eval(). React never calls eval() in production, so the
+ * production CSP stays exactly as strict as before.
  */
+const isDevelopment = process.env.NODE_ENV !== "production";
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",

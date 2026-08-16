@@ -94,4 +94,4 @@ Anmeldung, Logout, Registrierung, Dice und Roulette zeigen sichere Inline-Fehler
 
 ## Wireframes
 
-Im Repository befinden sich derzeit keine echten Wireframe-Bilder, Fotos oder Scans. Deshalb wird kein Wireframe-Nachweis behauptet. Reale, vom Studierenden erstellte Wireframes können später mit Route und Ansichtsgröße ergänzt werden.
+Im Repository liegen sieben digital erstellte Low-Fidelity-Wireframes unter `docs/wireframes/` (siehe `docs/wireframes/README.md` für die vollständige Zuordnung Datei → Route → Ansicht). Es handelt sich ausdrücklich um digitale Skizzen, nicht um Fotos oder Scans handgezeichneter Entwürfe. Sie zeigen Struktur, Anordnung und Navigationsbezug jeder implementierten Seite (`/`, `/register`, `/login`, `/lobby`, `/dice`, `/roulette`, `/leaderboard`) vor der endgültigen Gestaltung und decken sich mit dem tatsächlich umgesetzten Seiten- und Komponentenbaum oben.

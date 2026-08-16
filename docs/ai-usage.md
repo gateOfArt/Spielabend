@@ -107,6 +107,14 @@ KI wurde als Werkzeug für Strukturierung, Entwürfe, Implementierungsunterstüt
 - **Menschliche Entscheidung:** Der Studierende bat ausdrücklich um die Aktualisierung, nachdem er festgestellt hatte, dass die Dokumente veraltet waren.
 - **Ergebnis und Grenzen:** `/history`, Animationen und Audio bleiben in allen vier Dokumenten ausdrücklich als bewusst nicht umgesetzt gekennzeichnet; es wurden keine Platzhalter für diese Bereiche ergänzt.
 
+## Digitale Wireframes und PDF-Erstellung
+
+- **Zweck:** Den einzigen offenen Konzeptpunkt vor der Abgabe schließen (fehlender Wireframe-Nachweis) und die fünf konsolidierten Dokumente zusammen mit den Wireframes zu einer einreichungsfähigen `2050206.pdf` zusammenführen.
+- **Betroffener Bereich:** Sieben neue Wireframe-Bilder unter `docs/wireframes/` samt aktualisiertem `docs/wireframes/README.md`, der Wireframe-Absatz in `docs/ui-concept.md`, sowie ein Build-Schritt (`.local/scratch/`, nicht versioniert), der die fünf Markdown-Dokumente und die Wireframes über das bereits im Projekt vorhandene Playwright zu `2050206.pdf` rendert.
+- **Technische Validierung:** Die Wireframes wurden nach Erstellung visuell geprüft (korrekte Route, Navigationselemente, Guthaben-Chip, Formularfelder je Seite). Das erzeugte PDF wurde auf Seitenzahl, Abschnittsreihenfolge und sichtbare Wireframe-Bilder geprüft.
+- **Menschliche Entscheidung:** Der Studierende lehnte einen von der KI vorgeschlagenen Ansatz ausdrücklich ab, bei dem Fotos handgezeichneter Skizzen imitiert worden wären, und entschied sich stattdessen bewusst für ehrlich als digital gekennzeichnete Wireframes. Er entschied zusätzlich, die lokalen Commits zu diesem Zeitpunkt noch nicht selbst nach GitHub zu pushen und dies eigenständig zu einem späteren Zeitpunkt zu erledigen.
+- **Ergebnis und Grenzen:** Die Wireframes ersetzen keine handgezeichneten Entwürfe; sollte der Studierende später echte, selbst angefertigte Skizzen fotografieren, ersetzen diese die aktuellen Dateien unter Beibehaltung der Dateinamen und Bildunterschriften. Diese Änderungen waren zum Zeitpunkt dieses Eintrags noch nicht committet.
+
 ## Menschliche Steuerung und Prüfung
 
 KI-Vorschläge wurden nicht automatisch übernommen. Der Studierende formulierte Anforderungen und konkrete Umsetzungsvorgaben, überprüfte den erzeugten Code und die Diffs, bewertete Test- und Buildnachweise und leitete daraus Korrekturen ab. Er reduzierte übergroße oder bewertungsferne Vorschläge, bestimmte die Trennung der Entwicklungsphasen und Commitgrenzen und traf die abschließenden Entscheidungen über Funktionsumfang, Architektur, Dokumentationsstruktur und Freigabe.

@@ -34,8 +34,6 @@ export function RegisterForm({
         value={displayName}
         onChange={(event) => setDisplayName(event.target.value)}
         autoComplete="nickname"
-        minLength={2}
-        maxLength={40}
         error={state.fieldErrors.displayName?.[0]}
         disabled={isPending}
         required
@@ -64,8 +62,6 @@ export function RegisterForm({
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="new-password"
-          minLength={12}
-          maxLength={128}
           aria-describedby="password-guidance"
           error={state.fieldErrors.password?.[0]}
           disabled={isPending}

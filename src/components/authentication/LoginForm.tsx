@@ -45,7 +45,6 @@ export function LoginForm({ action = loginAction }: LoginFormProps) {
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="current-password"
-        maxLength={128}
         disabled={isPending}
         required
       />

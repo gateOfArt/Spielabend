@@ -39,6 +39,7 @@ Unit Tests prüfen reine Regeln, Komponententests die Browserinteraktion, Integr
 | Logout-Isolation | Integration | Logout entfernt nur die aktuelle Sitzung; eine zweite Sitzung sowie Konto, Credits und Transaktionen bleiben erhalten. Wiederholter Logout ist sicher. |
 | Manipulierter Auth-Request | Integration | Zusätzliche Login- oder Logout-Felder, eine fehlende oder fremde Origin und ein unzulässiger `Sec-Fetch-Site`-Wert werden sicher abgelehnt. |
 | Same-Origin-Mutation | Integration | Eine unsichere HTTP-Methode wird nur mit exakt passender Origin, zulässigem Fetch-Site-Nachweis und gültiger aktueller Sitzung autorisiert. |
+| Unicode-Zeichenlänge bei Passwort und Anzeigename | Integration und E2E | Passwort und Anzeigename werden serverseitig nach Unicode-Codepoints (`Array.from(...).length`) statt UTF-16-Codeeinheiten geprüft; das Formular begrenzt die Länge nicht mehr clientseitig, damit mehrteilige Zeichen wie Emoji nicht vor der Serverprüfung stillschweigend abgeschnitten werden. Ein 128-Codepoint-Passwort und ein 40-Codepoint-Anzeigename aus Emoji durchlaufen Registrierung und Anmeldung unverändert. |
 
 Die aktuelle Vitest-Suite ist erfolgreich. Die vollständige Projektprüfung umfasste zusätzlich Lint, strenge Typprüfung, Produktionsbuild und die Playwright-Abläufe für Landingpage, Registrierung sowie Anmeldung, Schutz und Logout. Tests verwenden isolierte Store-Instanzen und injizierbare Abhängigkeiten; eine Produktions-Reset-Route existiert nicht.
 

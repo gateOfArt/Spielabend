@@ -115,9 +115,44 @@ test("serves the protected core API through the production server", async ({
         requestId,
         bet: 10,
         prediction: 4,
+        finalCredits: expect.any(Number),
       }),
     },
   });
+  const finalCredits = (
+    createBody as {
+      readonly data: { readonly round: { readonly finalCredits: number } };
+    }
+  ).data.round.finalCredits;
+
+  const meAfterRound = await browserApi(page, "/api/v1/users/me");
+  expect(meAfterRound).toEqual({
+    status: 200,
+    body: {
+      data: { displayName: "Core API E2E", credits: finalCredits },
+    },
+    bodyLength: expect.any(Number),
+  });
+
+  const leaderboardAfterRound = await browserApi(
+    page,
+    "/api/v1/leaderboard",
+  );
+  expect(leaderboardAfterRound.status).toBe(200);
+  expect(leaderboardAfterRound.body).toEqual({
+    data: {
+      entries: expect.arrayContaining([
+        expect.objectContaining({
+          displayName: "Core API E2E",
+          credits: finalCredits,
+          isCurrentUser: true,
+        }),
+      ]),
+    },
+  });
+
+  await page.goto("/lobby");
+  await expect(page.getByText(`${finalCredits} Credits`).first()).toBeVisible();
 
   const roundsResponse = await browserApi(page, "/api/v1/game-rounds");
   expect(roundsResponse.status).toBe(200);

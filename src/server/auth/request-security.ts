@@ -52,3 +52,16 @@ export function createMutationRequestEvidence(
     secFetchSite: firstHeaderValue(headers.get("sec-fetch-site")),
   };
 }
+
+const UNKNOWN_CLIENT_KEY = "unknown-client";
+
+/**
+ * Best-effort IP-like identity for rate-limit keys, not an authoritative
+ * client identifier. `x-forwarded-for` is attacker-influenceable on a
+ * deployment without a trusted reverse proxy in front of the app; that only
+ * weakens rate-limit key isolation, it never grants access, so it is an
+ * acceptable trade-off for a single-process in-memory limiter.
+ */
+export function resolveClientIpLikeKey(headers: HeaderReader): string {
+  return firstHeaderValue(headers.get("x-forwarded-for")) ?? UNKNOWN_CLIENT_KEY;
+}

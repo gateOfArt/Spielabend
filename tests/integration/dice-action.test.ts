@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDiceActionHandler } from "@/app/dice/action-handler";
 import { initialDiceActionState } from "@/domain/dice";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import type {
   DiceRoundResult,
   DiceRoundService,
 } from "@/server/services/dice-round.contract";
+
+function allowingRateLimiter(): Pick<RateLimiter, "consume"> {
+  return { consume: () => ({ allowed: true }) };
+}
 
 const SESSION_TOKEN = "server-session-token";
 const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
@@ -56,6 +61,7 @@ describe("Dice Server Action boundary", () => {
       diceService: service,
       getSessionToken: () => SESSION_TOKEN,
       authorizeRequest,
+      rateLimiter: allowingRateLimiter(),
       revalidateDiceViews,
     });
 
@@ -88,6 +94,7 @@ describe("Dice Server Action boundary", () => {
       diceService: service,
       getSessionToken: () => SESSION_TOKEN,
       authorizeRequest,
+      rateLimiter: allowingRateLimiter(),
       revalidateDiceViews: vi.fn(),
     });
 
@@ -107,6 +114,7 @@ describe("Dice Server Action boundary", () => {
       diceService: service,
       getSessionToken: () => SESSION_TOKEN,
       authorizeRequest: () => Promise.resolve({ ok: false, code }),
+      rateLimiter: allowingRateLimiter(),
       revalidateDiceViews: vi.fn(),
     });
 
@@ -129,6 +137,7 @@ describe("Dice Server Action boundary", () => {
           ok: true,
           principal: { accountId: "account-1", sessionId: "session-1" },
         }),
+      rateLimiter: allowingRateLimiter(),
       revalidateDiceViews: vi.fn(),
     });
 
@@ -139,5 +148,30 @@ describe("Dice Server Action boundary", () => {
       message: "Für diesen Einsatz reichen deine Credits nicht aus.",
       fieldErrors: {},
     });
+  });
+
+  it("blocks a round once the rate limit is exceeded without calling the game service", async () => {
+    const { service, play } = createService();
+    const consume = vi.fn(() => ({
+      allowed: false as const,
+      retryAfterSeconds: 5,
+    }));
+    const action = createDiceActionHandler({
+      diceService: service,
+      getSessionToken: () => SESSION_TOKEN,
+      authorizeRequest: () =>
+        Promise.resolve({
+          ok: true as const,
+          principal: { accountId: "account-1", sessionId: "session-1" },
+        }),
+      rateLimiter: { consume },
+      revalidateDiceViews: vi.fn(),
+    });
+
+    const state = await action(initialDiceActionState, diceFormData());
+
+    expect(state.status).toBe("error");
+    expect(consume).toHaveBeenCalledWith("game:account-1");
+    expect(play).not.toHaveBeenCalled();
   });
 });

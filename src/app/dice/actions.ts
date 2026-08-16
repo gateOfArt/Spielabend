@@ -8,6 +8,7 @@ import { createDiceActionHandler } from "@/app/dice/action-handler";
 import type { DiceActionState } from "@/domain/dice";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 import { createMutationRequestEvidence } from "@/server/auth/request-security";
+import { gameActionRateLimiter } from "@/server/rate-limit/policies";
 import { authenticationSessionService } from "@/server/services/authentication-session";
 import { diceRoundService } from "@/server/services/dice-round";
 
@@ -24,6 +25,7 @@ const diceActionHandler = createDiceActionHandler({
       sessionToken,
     });
   },
+  rateLimiter: gameActionRateLimiter,
   revalidateDiceViews() {
     revalidatePath("/dice");
     revalidatePath("/lobby");

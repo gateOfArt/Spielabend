@@ -8,7 +8,9 @@ import { createLoginActionHandler } from "@/app/login/action-handler";
 import type { LoginActionState } from "@/domain/authentication";
 import {
   createMutationRequestEvidence,
+  resolveClientIpLikeKey,
 } from "@/server/auth/request-security";
+import { loginRateLimiter } from "@/server/rate-limit/policies";
 import {
   authenticationSessionService,
   isSameOriginMutationEvidence,
@@ -20,6 +22,10 @@ const loginActionHandler = createLoginActionHandler({
     return isSameOriginMutationEvidence(
       createMutationRequestEvidence(await headers(), "POST"),
     );
+  },
+  rateLimiter: loginRateLimiter,
+  async resolveClientKey() {
+    return resolveClientIpLikeKey(await headers());
   },
   async setSessionCookie(cookie) {
     (await cookies()).set(cookie.name, cookie.value, {

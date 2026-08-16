@@ -4,11 +4,22 @@ import { creditPolicy } from "@/domain/credits";
 import { initialRegistrationActionState } from "@/domain/registration";
 import { AccountRepository } from "@/server/repositories/account-repository";
 import { CreditTransactionRepository } from "@/server/repositories/credit-transaction-repository";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import { DefaultAccountRegistrationService } from "@/server/services/account-registration";
 import { RuntimeUnitOfWork } from "@/server/services/runtime-unit-of-work";
 import { InMemoryStore } from "@/server/store/in-memory-store";
 
-function createSubject() {
+function allowingRateLimiter(): Pick<RateLimiter, "consume"> {
+  return { consume: () => ({ allowed: true }) };
+}
+
+function createSubject({
+  isRequestOriginAllowed = () => true,
+  rateLimiter = allowingRateLimiter(),
+}: {
+  readonly isRequestOriginAllowed?: () => boolean;
+  readonly rateLimiter?: Pick<RateLimiter, "consume">;
+} = {}) {
   const store = new InMemoryStore();
   const accountRepository = new AccountRepository(store);
   const transactionRepository = new CreditTransactionRepository(store);
@@ -27,7 +38,12 @@ function createSubject() {
   });
 
   return {
-    action: createRegistrationActionHandler(service),
+    action: createRegistrationActionHandler({
+      accountRegistrationService: service,
+      isRequestOriginAllowed,
+      rateLimiter,
+      resolveClientKey: () => "test-client",
+    }),
     accountRepository,
     transactionRepository,
     hash,
@@ -117,5 +133,48 @@ describe("registration action boundary", () => {
     });
     expect(subject.accountRepository.listAll()).toHaveLength(1);
     expect(subject.transactionRepository.listAll()).toHaveLength(1);
+  });
+
+  it("rejects an unsafe request origin before hashing or writing", async () => {
+    const subject = createSubject({ isRequestOriginAllowed: () => false });
+
+    const state = await subject.action(
+      initialRegistrationActionState,
+      registrationFormData(),
+    );
+
+    expect(state).toEqual({
+      status: "error",
+      fieldErrors: {},
+      message:
+        "Das Konto konnte nicht erstellt werden. Bitte versuche es erneut.",
+    });
+    expect(subject.hash).not.toHaveBeenCalled();
+    expect(subject.accountRepository.listAll()).toHaveLength(0);
+  });
+
+  it("blocks a registration attempt once the rate limit is exceeded without hashing or writing", async () => {
+    const consume = vi.fn(() => ({
+      allowed: false as const,
+      retryAfterSeconds: 17,
+    }));
+    const subject = createSubject({ rateLimiter: { consume } });
+
+    const state = await subject.action(
+      initialRegistrationActionState,
+      registrationFormData(),
+    );
+
+    expect(state).toEqual({
+      status: "error",
+      fieldErrors: {},
+      message:
+        "Zu viele Registrierungsversuche. Bitte versuche es in Kürze erneut.",
+    });
+    expect(consume).toHaveBeenCalledWith(
+      "register:test-client:ada.action@example.com",
+    );
+    expect(subject.hash).not.toHaveBeenCalled();
+    expect(subject.accountRepository.listAll()).toHaveLength(0);
   });
 });

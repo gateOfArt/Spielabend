@@ -9,6 +9,7 @@ export type ApiProblemCode =
   | "INVALID_REQUEST"
   | "REQUEST_CONFLICT"
   | "RESOURCE_NOT_FOUND"
+  | "RATE_LIMITED"
   | "REQUEST_FAILED";
 
 export interface ApiProblem {
@@ -24,6 +25,7 @@ const problemTitles: Readonly<Record<ApiProblemCode, string>> = {
   INVALID_REQUEST: "Invalid request",
   REQUEST_CONFLICT: "Request conflict",
   RESOURCE_NOT_FOUND: "Resource not found",
+  RATE_LIMITED: "Rate limited",
   REQUEST_FAILED: "Request failed",
 };
 
@@ -63,4 +65,25 @@ export function problemResponse(
 
 export function noContentResponse(): NextResponse {
   return new NextResponse(null, { status: 204, headers: noStoreHeaders });
+}
+
+export function rateLimitedResponse(
+  retryAfterSeconds: number,
+): NextResponse<ApiProblem> {
+  return NextResponse.json(
+    {
+      type: "about:blank",
+      title: problemTitles.RATE_LIMITED,
+      status: 429,
+      code: "RATE_LIMITED",
+    },
+    {
+      status: 429,
+      headers: {
+        ...noStoreHeaders,
+        "content-type": "application/problem+json",
+        "retry-after": String(retryAfterSeconds),
+      },
+    },
+  );
 }

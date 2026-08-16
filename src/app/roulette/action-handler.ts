@@ -4,12 +4,15 @@ import type { RouletteAction, RouletteActionState } from "@/domain/roulette";
 import type {
   CookieMutationAuthorizationResult,
 } from "@/server/auth/authentication.contract";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import type { RouletteRoundService } from "@/server/services/roulette-round.contract";
 import { validateRouletteRoundInput } from "@/server/services/roulette-round";
 
 const INVALID_INPUT_MESSAGE = "Bitte prüfe Einsatz und Farbwahl.";
 const SAFE_ROULETTE_ERROR =
   "Die Runde konnte nicht durchgeführt werden. Bitte versuche es erneut.";
+const RATE_LIMITED_MESSAGE =
+  "Zu viele Spielrunden in kurzer Zeit. Bitte warte kurz und versuche es erneut.";
 
 export interface RouletteActionHandlerProps {
   readonly rouletteService: RouletteRoundService;
@@ -19,6 +22,7 @@ export interface RouletteActionHandlerProps {
   ) =>
     | CookieMutationAuthorizationResult
     | Promise<CookieMutationAuthorizationResult>;
+  readonly rateLimiter: Pick<RateLimiter, "consume">;
   readonly revalidateRouletteViews: () => void | Promise<void>;
 }
 
@@ -56,6 +60,7 @@ export function createRouletteActionHandler({
   rouletteService,
   getSessionToken,
   authorizeRequest,
+  rateLimiter,
   revalidateRouletteViews,
 }: RouletteActionHandlerProps): RouletteAction {
   return async function rouletteAction(
@@ -81,6 +86,14 @@ export function createRouletteActionHandler({
             "Deine Sitzung ist nicht mehr gültig. Bitte melde dich erneut an.",
           )
         : errorState(SAFE_ROULETTE_ERROR);
+    }
+
+    const rateLimit = rateLimiter.consume(
+      `game:${authorization.principal.accountId}`,
+    );
+
+    if (!rateLimit.allowed) {
+      return errorState(RATE_LIMITED_MESSAGE);
     }
 
     const result = await rouletteService.play(sessionToken, validation.data);

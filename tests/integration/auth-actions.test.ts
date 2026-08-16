@@ -13,6 +13,13 @@ import {
   type LogoutResult,
   type SessionCookie,
 } from "@/server/auth/authentication.contract";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
+
+function allowingRateLimiter(): Pick<RateLimiter, "consume"> {
+  return { consume: () => ({ allowed: true }) };
+}
+
+const resolveClientKey = () => "test-client";
 
 const SESSION_TOKEN = Buffer.alloc(32, 42).toString("base64url");
 const EXPIRES_AT = "2026-08-14T16:00:00.000Z";
@@ -96,6 +103,8 @@ describe("login action boundary", () => {
       authenticationService: service,
       isRequestOriginAllowed: () => true,
       setSessionCookie,
+      rateLimiter: allowingRateLimiter(),
+      resolveClientKey,
     });
 
     const state = await action(initialLoginActionState, loginFormData());
@@ -128,6 +137,8 @@ describe("login action boundary", () => {
       authenticationService: service,
       isRequestOriginAllowed: () => true,
       setSessionCookie: vi.fn(),
+      rateLimiter: allowingRateLimiter(),
+      resolveClientKey,
     });
 
     const state = await action(initialLoginActionState, testCase.formData);
@@ -144,11 +155,15 @@ describe("login action boundary", () => {
       authenticationService: service,
       isRequestOriginAllowed: () => false,
       setSessionCookie: vi.fn(),
+      rateLimiter: allowingRateLimiter(),
+      resolveClientKey,
     });
     const extraFieldAction = createLoginActionHandler({
       authenticationService: service,
       isRequestOriginAllowed: () => true,
       setSessionCookie: vi.fn(),
+      rateLimiter: allowingRateLimiter(),
+      resolveClientKey,
     });
     const formData = loginFormData();
     formData.set("accountId", "client-selected-account");
@@ -164,6 +179,32 @@ describe("login action boundary", () => {
 
     expect(unsafeState.status).toBe("error");
     expect(extraFieldState.status).toBe("error");
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it("blocks a login attempt once the rate limit is exceeded without calling the service", async () => {
+    const { service, login } = createService();
+    const consume = vi.fn(() => ({
+      allowed: false as const,
+      retryAfterSeconds: 42,
+    }));
+    const action = createLoginActionHandler({
+      authenticationService: service,
+      isRequestOriginAllowed: () => true,
+      setSessionCookie: vi.fn(),
+      rateLimiter: { consume },
+      resolveClientKey: () => "203.0.113.5",
+    });
+
+    const state = await action(initialLoginActionState, loginFormData());
+
+    expect(state).toEqual({
+      status: "error",
+      message: "Zu viele Anmeldeversuche. Bitte versuche es in Kürze erneut.",
+    });
+    expect(consume).toHaveBeenCalledWith(
+      "login:203.0.113.5:ada@example.com",
+    );
     expect(login).not.toHaveBeenCalled();
   });
 });

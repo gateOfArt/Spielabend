@@ -8,6 +8,7 @@ import { createRouletteActionHandler } from "@/app/roulette/action-handler";
 import type { RouletteActionState } from "@/domain/roulette";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 import { createMutationRequestEvidence } from "@/server/auth/request-security";
+import { gameActionRateLimiter } from "@/server/rate-limit/policies";
 import { authenticationSessionService } from "@/server/services/authentication-session";
 import { rouletteRoundService } from "@/server/services/roulette-round";
 
@@ -24,6 +25,7 @@ const rouletteActionHandler = createRouletteActionHandler({
       sessionToken,
     });
   },
+  rateLimiter: gameActionRateLimiter,
   revalidateRouletteViews() {
     revalidatePath("/roulette");
     revalidatePath("/lobby");

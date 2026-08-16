@@ -4,12 +4,15 @@ import type { DiceAction, DiceActionState } from "@/domain/dice";
 import type {
   CookieMutationAuthorizationResult,
 } from "@/server/auth/authentication.contract";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import type { DiceRoundService } from "@/server/services/dice-round.contract";
 import { validateDiceRoundInput } from "@/server/services/dice-round";
 
 const INVALID_INPUT_MESSAGE = "Bitte prüfe Einsatz und Vorhersage.";
 const SAFE_DICE_ERROR =
   "Die Runde konnte nicht durchgeführt werden. Bitte versuche es erneut.";
+const RATE_LIMITED_MESSAGE =
+  "Zu viele Spielrunden in kurzer Zeit. Bitte warte kurz und versuche es erneut.";
 
 export interface DiceActionHandlerProps {
   readonly diceService: DiceRoundService;
@@ -19,6 +22,7 @@ export interface DiceActionHandlerProps {
   ) =>
     | CookieMutationAuthorizationResult
     | Promise<CookieMutationAuthorizationResult>;
+  readonly rateLimiter: Pick<RateLimiter, "consume">;
   readonly revalidateDiceViews: () => void | Promise<void>;
 }
 
@@ -56,6 +60,7 @@ export function createDiceActionHandler({
   diceService,
   getSessionToken,
   authorizeRequest,
+  rateLimiter,
   revalidateDiceViews,
 }: DiceActionHandlerProps): DiceAction {
   return async function diceAction(
@@ -81,6 +86,14 @@ export function createDiceActionHandler({
             "Deine Sitzung ist nicht mehr gültig. Bitte melde dich erneut an.",
           )
         : errorState(SAFE_DICE_ERROR);
+    }
+
+    const rateLimit = rateLimiter.consume(
+      `game:${authorization.principal.accountId}`,
+    );
+
+    if (!rateLimit.allowed) {
+      return errorState(RATE_LIMITED_MESSAGE);
     }
 
     const result = await diceService.play(sessionToken, validation.data);

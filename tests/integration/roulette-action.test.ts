@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRouletteActionHandler } from "@/app/roulette/action-handler";
 import { initialRouletteActionState } from "@/domain/roulette";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import type {
   RouletteRoundResult,
   RouletteRoundService,
 } from "@/server/services/roulette-round.contract";
+
+function allowingRateLimiter(): Pick<RateLimiter, "consume"> {
+  return { consume: () => ({ allowed: true }) };
+}
 
 const SESSION_TOKEN = "server-session-token";
 const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
@@ -57,6 +62,7 @@ describe("Roulette Server Action boundary", () => {
       rouletteService: service,
       getSessionToken: () => SESSION_TOKEN,
       authorizeRequest,
+      rateLimiter: allowingRateLimiter(),
       revalidateRouletteViews,
     });
 
@@ -89,6 +95,7 @@ describe("Roulette Server Action boundary", () => {
       rouletteService: service,
       getSessionToken: () => SESSION_TOKEN,
       authorizeRequest,
+      rateLimiter: allowingRateLimiter(),
       revalidateRouletteViews: vi.fn(),
     });
 
@@ -108,6 +115,7 @@ describe("Roulette Server Action boundary", () => {
       rouletteService: service,
       getSessionToken: () => SESSION_TOKEN,
       authorizeRequest: () => Promise.resolve({ ok: false, code }),
+      rateLimiter: allowingRateLimiter(),
       revalidateRouletteViews: vi.fn(),
     });
 
@@ -130,6 +138,7 @@ describe("Roulette Server Action boundary", () => {
           ok: true,
           principal: { accountId: "account-1", sessionId: "session-1" },
         }),
+      rateLimiter: allowingRateLimiter(),
       revalidateRouletteViews: vi.fn(),
     });
 
@@ -140,5 +149,33 @@ describe("Roulette Server Action boundary", () => {
       message: "Für diesen Einsatz reichen deine Credits nicht aus.",
       fieldErrors: {},
     });
+  });
+
+  it("blocks a round once the rate limit is exceeded without calling the game service", async () => {
+    const { service, play } = createService();
+    const consume = vi.fn(() => ({
+      allowed: false as const,
+      retryAfterSeconds: 5,
+    }));
+    const action = createRouletteActionHandler({
+      rouletteService: service,
+      getSessionToken: () => SESSION_TOKEN,
+      authorizeRequest: () =>
+        Promise.resolve({
+          ok: true as const,
+          principal: { accountId: "account-1", sessionId: "session-1" },
+        }),
+      rateLimiter: { consume },
+      revalidateRouletteViews: vi.fn(),
+    });
+
+    const state = await action(
+      initialRouletteActionState,
+      rouletteFormData(),
+    );
+
+    expect(state.status).toBe("error");
+    expect(consume).toHaveBeenCalledWith("game:account-1");
+    expect(play).not.toHaveBeenCalled();
   });
 });

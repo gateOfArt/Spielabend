@@ -8,12 +8,15 @@ import type {
   AuthenticationSessionService,
   SessionCookie,
 } from "@/server/auth/authentication.contract";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import { validateLoginCredentials } from "@/server/services/authentication-session";
 
 const INVALID_CREDENTIALS_MESSAGE =
   "E-Mail-Adresse oder Passwort ist ungültig.";
 const SAFE_LOGIN_ERROR =
   "Die Anmeldung konnte nicht durchgeführt werden. Bitte versuche es erneut.";
+const RATE_LIMITED_MESSAGE =
+  "Zu viele Anmeldeversuche. Bitte versuche es in Kürze erneut.";
 
 export interface LoginActionHandlerProps {
   readonly authenticationService: AuthenticationSessionService;
@@ -21,6 +24,8 @@ export interface LoginActionHandlerProps {
   readonly setSessionCookie: (
     cookie: SessionCookie,
   ) => void | Promise<void>;
+  readonly rateLimiter: Pick<RateLimiter, "consume">;
+  readonly resolveClientKey: () => string | Promise<string>;
 }
 
 function formDataToUntrustedInput(formData: FormData): Record<string, unknown> {
@@ -47,6 +52,8 @@ export function createLoginActionHandler({
   authenticationService,
   isRequestOriginAllowed,
   setSessionCookie,
+  rateLimiter,
+  resolveClientKey,
 }: LoginActionHandlerProps): LoginAction {
   return async function loginAction(
     previousState,
@@ -64,6 +71,15 @@ export function createLoginActionHandler({
 
     if (!validation.success) {
       return { status: "error", message: INVALID_CREDENTIALS_MESSAGE };
+    }
+
+    const clientKey = await resolveClientKey();
+    const rateLimit = rateLimiter.consume(
+      `login:${clientKey}:${validation.data.email}`,
+    );
+
+    if (!rateLimit.allowed) {
+      return { status: "error", message: RATE_LIMITED_MESSAGE };
     }
 
     const result = await authenticationService.login(validation.data);

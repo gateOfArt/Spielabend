@@ -7,6 +7,8 @@ import { ROULETTE_RULE } from "@/server/services/roulette-round.contract";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 import type { AuthenticationSessionService } from "@/server/auth/authentication.contract";
 import { createMutationRequestEvidence } from "@/server/auth/request-security";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
+import { gameActionRateLimiter } from "@/server/rate-limit/policies";
 import type { DiceRoundService } from "@/server/services/dice-round.contract";
 import type { RouletteRoundService } from "@/server/services/roulette-round.contract";
 import {
@@ -29,6 +31,7 @@ import {
   jsonResponse,
   noContentResponse,
   problemResponse,
+  rateLimitedResponse,
 } from "@/server/api/http";
 
 const MAX_JSON_BODY_LENGTH = 8_192;
@@ -74,7 +77,11 @@ const notFoundParamsSchema = z.strictObject({
 });
 
 type ReadAuthorizationResult =
-  | { readonly ok: true; readonly sessionToken: string | null }
+  | {
+      readonly ok: true;
+      readonly sessionToken: string | null;
+      readonly accountId: string;
+    }
   | { readonly ok: false; readonly response: Response };
 
 type JsonBodyResult =
@@ -93,6 +100,7 @@ export interface CoreApiHandlerProps {
   readonly gameRoundQueryService: Pick<GameRoundQueryService, "read">;
   readonly diceRoundService: DiceRoundService;
   readonly rouletteRoundService: RouletteRoundService;
+  readonly gameActionRateLimiter: Pick<RateLimiter, "consume">;
 }
 
 export interface CoreApiHandlers {
@@ -122,7 +130,11 @@ export function createCoreApiHandlers(
       await props.authenticationService.requireAuthenticatedAccount(token);
 
     return authorization.ok
-      ? { ok: true, sessionToken: token }
+      ? {
+          ok: true,
+          sessionToken: token,
+          accountId: authorization.principal.accountId,
+        }
       : {
           ok: false,
           response: problemResponse(401, "AUTHENTICATION_REQUIRED"),
@@ -141,7 +153,11 @@ export function createCoreApiHandlers(
       });
 
     if (authorization.ok) {
-      return { ok: true, sessionToken: token };
+      return {
+        ok: true,
+        sessionToken: token,
+        accountId: authorization.principal.accountId,
+      };
     }
 
     return {
@@ -153,6 +169,12 @@ export function createCoreApiHandlers(
     };
   }
 
+  function exceedsMaxBodyLength(request: NextRequest): boolean {
+    const contentLength = Number(request.headers.get("content-length"));
+
+    return Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_LENGTH;
+  }
+
   async function readJsonBody(request: NextRequest): Promise<JsonBodyResult> {
     const mediaType = request.headers
       .get("content-type")
@@ -160,7 +182,7 @@ export function createCoreApiHandlers(
       ?.trim()
       .toLowerCase();
 
-    if (mediaType !== "application/json") {
+    if (mediaType !== "application/json" || exceedsMaxBodyLength(request)) {
       return { success: false };
     }
 
@@ -182,6 +204,10 @@ export function createCoreApiHandlers(
   ): Promise<boolean> {
     if (request.body === null) {
       return true;
+    }
+
+    if (exceedsMaxBodyLength(request)) {
+      return false;
     }
 
     try {
@@ -281,6 +307,14 @@ export function createCoreApiHandlers(
 
       if (!authorization.ok) {
         return authorization.response;
+      }
+
+      const rateLimit = props.gameActionRateLimiter.consume(
+        `game:${authorization.accountId}`,
+      );
+
+      if (!rateLimit.allowed) {
+        return rateLimitedResponse(rateLimit.retryAfterSeconds);
       }
 
       if (!hasValidEmptyQuery(request.nextUrl.searchParams)) {
@@ -412,4 +446,5 @@ export const coreApiHandlers = createCoreApiHandlers({
   gameRoundQueryService,
   diceRoundService,
   rouletteRoundService,
+  gameActionRateLimiter,
 });

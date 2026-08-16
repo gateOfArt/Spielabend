@@ -6,6 +6,10 @@ import {
   type CoreApiHandlerProps,
 } from "@/server/api/core-route-handlers";
 
+function allowingRateLimiter(): CoreApiHandlerProps["gameActionRateLimiter"] {
+  return { consume: () => ({ allowed: true }) };
+}
+
 const SESSION_TOKEN = Buffer.alloc(32, 44).toString("base64url");
 const REQUEST_ID = "b9c32417-0e18-4bb4-bfa7-a50d0981fcbb";
 const ORIGIN = "https://spieleabend.example";
@@ -177,6 +181,7 @@ function createSubject(overrides: Partial<CoreApiHandlerProps> = {}) {
     gameRoundQueryService,
     diceRoundService,
     rouletteRoundService,
+    gameActionRateLimiter: allowingRateLimiter(),
     ...overrides,
   };
 
@@ -355,6 +360,27 @@ describe("core resource-oriented API handlers", () => {
     );
 
     expect(response.status).toBe(200);
+  });
+
+  it("returns 429 with a Retry-After header once the game-action rate limit is exceeded", async () => {
+    const consume = vi.fn(() => ({
+      allowed: false as const,
+      retryAfterSeconds: 12,
+    }));
+    const subject = createSubject({ gameActionRateLimiter: { consume } });
+
+    const response = await subject.handlers.postGameRound(
+      apiRequest("/api/v1/game-rounds", {
+        method: "POST",
+        headers: validMutationHeaders(),
+        body: validDiceBody(),
+      }),
+    );
+
+    await expectProblem(response, 429, "RATE_LIMITED");
+    expect(response.headers.get("retry-after")).toBe("12");
+    expect(consume).toHaveBeenCalledWith("game:account-1");
+    expect(subject.props.diceRoundService.play).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -5,6 +5,7 @@ import type {
   RegistrationAction,
   RegistrationActionState,
 } from "@/domain/registration";
+import type { RateLimiter } from "@/server/rate-limit/rate-limiter";
 import {
   validateRegistrationInput,
 } from "@/server/services/account-registration";
@@ -13,6 +14,8 @@ import type { AccountRegistrationService } from "@/server/services/account-regis
 const INVALID_INPUT_MESSAGE = "Bitte prüfe deine Eingaben.";
 const SAFE_REGISTRATION_ERROR =
   "Das Konto konnte nicht erstellt werden. Bitte versuche es erneut.";
+const RATE_LIMITED_MESSAGE =
+  "Zu viele Registrierungsversuche. Bitte versuche es in Kürze erneut.";
 
 function formDataToUntrustedInput(formData: FormData): Record<string, unknown> {
   const input: Record<string, unknown> = {};
@@ -34,14 +37,32 @@ function formDataToUntrustedInput(formData: FormData): Record<string, unknown> {
   return input;
 }
 
-export function createRegistrationActionHandler(
-  accountRegistrationService: AccountRegistrationService,
-): RegistrationAction {
+export interface RegistrationActionHandlerProps {
+  readonly accountRegistrationService: AccountRegistrationService;
+  readonly isRequestOriginAllowed: () => boolean | Promise<boolean>;
+  readonly rateLimiter: Pick<RateLimiter, "consume">;
+  readonly resolveClientKey: () => string | Promise<string>;
+}
+
+export function createRegistrationActionHandler({
+  accountRegistrationService,
+  isRequestOriginAllowed,
+  rateLimiter,
+  resolveClientKey,
+}: RegistrationActionHandlerProps): RegistrationAction {
   return async function registrationAction(
     previousState,
     formData,
   ): Promise<RegistrationActionState> {
     void previousState;
+
+    if (!(await isRequestOriginAllowed())) {
+      return {
+        status: "error",
+        fieldErrors: {},
+        message: SAFE_REGISTRATION_ERROR,
+      };
+    }
 
     const validation = validateRegistrationInput(
       formDataToUntrustedInput(formData),
@@ -52,6 +73,19 @@ export function createRegistrationActionHandler(
         status: "error",
         fieldErrors: validation.fieldErrors,
         message: INVALID_INPUT_MESSAGE,
+      };
+    }
+
+    const clientKey = await resolveClientKey();
+    const rateLimit = rateLimiter.consume(
+      `register:${clientKey}:${validation.data.email}`,
+    );
+
+    if (!rateLimit.allowed) {
+      return {
+        status: "error",
+        fieldErrors: {},
+        message: RATE_LIMITED_MESSAGE,
       };
     }
 

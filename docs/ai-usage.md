@@ -9,6 +9,13 @@ KI wurde als Werkzeug für Strukturierung, Entwürfe, Implementierungsunterstüt
 - **Technische Validierung:** Lint, Typprüfung, Produktionsbuild sowie Struktur- und Konfigurationsprüfungen waren erfolgreich.
 - **Menschliche Entscheidung:** Der Studierende legte Zielstruktur und zulässigen Umfang fest, prüfte Code, Konfiguration und Diff und verlangte eine kleinere Foundation, bevor er den Commit freigab.
 
+## Agentensteuerung: AGENTS.md und Skills
+
+- **Zweck:** Verbindliche Regeln festlegen, wie KI-Unterstützung in diesem Repository arbeiten darf und muss — nach dem im Modul (Block 06, „Rules · Instructions · AGENTS.md") vermittelten Muster einer projektspezifischen Verhandlungsbasis mit der KI.
+- **Betroffener Bereich:** `AGENTS.md` (Architekturgrenzen, Dokumentationspflichten, verbindliche Prüfschritte) sowie die vier Skills `.agents/skills/{development,security,testing,quality-review}/SKILL.md` mit je eigenem Workflow und eigenen Abnahmekriterien.
+- **Technische Validierung:** Beide Artefakte wurden im weiteren Projektverlauf tatsächlich angewendet und wiederholt gegen den aktuellen Dokumentationsstand abgeglichen; veraltete Verweise in den vier Skills (auf ein nie angelegtes Requirement-Matrix-, Source-Register-, Security- oder Testing-Strategy-Dokument) wurden bei Entdeckung auf die tatsächlich gepflegten fünf Dokumente korrigiert.
+- **Menschliche Entscheidung:** Der Studierende legte Inhalt, Umfang und Formulierung von `AGENTS.md` und allen vier Skills selbst fest — welche Schichtgrenzen gelten, wann welcher Skill zwingend aufzurufen ist, welche Dokumentationsartefakte bewusst nicht entstehen sollen (kein Feature-PRD-Wildwuchs, keine separate Compliance-Dokumentation) und wann eine Dokumentationssynchronisierung stattfindet. Diese Dateien sind damit selbst Ergebnis einer Studierendenentscheidung und nicht ein von der KI vorgeschlagenes oder autonom gepflegtes Artefakt.
+
 ## Test- und UI-Grundlage
 
 - **Zweck:** Eine kleine Testinfrastruktur und wiederverwendbare UI-Basiskomponenten aufbauen.

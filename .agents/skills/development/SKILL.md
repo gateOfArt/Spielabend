@@ -9,7 +9,7 @@ Implement only a sourced requirement and keep the documented layering intact.
 
 ## Workflow
 
-1. Read the source register, requirements, matrix, architecture, and relevant PRD. Confirm the acceptance criteria and runtime contract.
+1. Read `docs/requirements.md`, `docs/technical-concept.md`, and the relevant PRD under `docs/prds/`. Confirm the acceptance criteria and runtime contract.
 2. Inspect nearby code and version-specific Next.js documentation before choosing an API.
 3. Keep App Router pages, layouts, loading states, and route handlers under `src/app/`. Use Server Components by default and add `"use client"` only at the smallest interactive boundary.
 4. Put reusable UI in `src/components/`, business rules in `src/domain/`, server orchestration in `src/server/services/`, persistence behind repositories and stores, and framework-neutral helpers in `src/lib/`.

@@ -9,7 +9,7 @@ Treat every client, request, cookie, environment value, and persisted identifier
 
 ## Workflow
 
-1. Read the requirement, data model, API contract, architecture, and security document. List assets, actors, entry points, trust boundaries, abuse cases, and required invariants.
+1. Read `docs/requirements.md`, the data model, API contract, and Sicherheit section in `docs/technical-concept.md`, and prior security decisions under `docs/decisions/`. List assets, actors, entry points, trust boundaries, abuse cases, and required invariants.
 2. Separate authentication from authorization. For every protected read and mutation, verify the current identity, role or permission, resource ownership, and allowed state transition on the server.
 3. Parse untrusted data with a narrow Zod schema at the boundary. Reject unknown or invalid states before domain or persistence work.
 4. Keep credentials and session material server-only. Use an established password hash, secure cookie settings, session rotation and expiry, and constant-time library operations; never log secrets or passwords.

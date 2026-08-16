@@ -9,7 +9,7 @@ Derive tests from observable requirements and failure risks rather than implemen
 
 ## Workflow
 
-1. Read the relevant PRD, requirement IDs, acceptance criteria, architecture, and existing tests. Identify the behavior and regression being proved.
+1. Read the relevant PRD under `docs/prds/`, the acceptance criteria in `docs/requirements.md`, `docs/test-cases.md`, and existing tests. Identify the behavior and regression being proved.
 2. Choose the lowest sufficient layer: unit tests for pure domain rules, integration tests for boundaries and persistence, and end-to-end tests for critical user journeys across the running application.
 3. Work RED, GREEN, Refactor for behavior changes: first observe a meaningful failure, implement the smallest change, then improve structure while keeping the suite green. Do not add a test that was already green unless it captures existing behavior intentionally.
 4. Cover positive, negative, and boundary cases. Include authentication, authorization, ownership, invalid state, and retry or concurrency cases where relevant.

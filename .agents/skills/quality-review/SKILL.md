@@ -9,12 +9,12 @@ Review the diff against its sources and evidence. Do not turn the review into a 
 
 ## Workflow
 
-1. Read the source register, requirements, matrix, architecture, relevant PRD, security guidance, and testing strategy.
+1. Read `docs/requirements.md`, `docs/technical-concept.md`, the relevant PRD under `docs/prds/`, and `docs/test-cases.md`.
 2. Inspect the complete scoped diff and nearby code. Trace affected flows through UI, domain, server, persistence, and external boundaries.
 3. Check correctness and acceptance criteria, AuthN/AuthZ and ownership, input validation, server authority, safe errors, secret handling, and dependency or lockfile changes.
 4. Check maintainability, naming, duplication, unnecessary abstraction, stale comments, architecture drift, runtime compatibility, and likely regressions.
 5. Verify tests cover positive, negative, and boundary behavior at the right layer. Distinguish test evidence from unverified claims.
-6. Run or inspect the relevant checks and compare documentation and matrix evidence with actual files and outputs.
+6. Run or inspect the relevant checks and compare `docs/test-cases.md` and other documentation claims with actual files and outputs.
 
 ## Findings format
 

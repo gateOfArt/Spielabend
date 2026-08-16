@@ -78,9 +78,22 @@ function copyGameRound(round: GameRound): GameRound {
   return { ...round };
 }
 
+/**
+ * Deliberately scoped to (account, requestId) only, not (account, game,
+ * requestId): client-generated UUID v4 request IDs make a cross-game
+ * collision negligible, and the shared commit path below still resolves any
+ * such collision safely to `conflict` without mutating state or mixing
+ * settlement data between games.
+ */
 function requestKey(accountId: string, requestId: string): string {
   return JSON.stringify([accountId, requestId]);
 }
+
+type GameRoundCommitStatus =
+  | { readonly status: "created"; readonly round: GameRound }
+  | { readonly status: "replayed"; readonly round: GameRound }
+  | { readonly status: "conflict" }
+  | { readonly status: "balance-changed" };
 
 export class InMemoryStore {
   #state: StoreState = createEmptyState();
@@ -253,97 +266,60 @@ export class InMemoryStore {
   }
 
   commitDiceRound(write: DiceRoundWrite): DiceRoundCommitResult {
-    const { expectedBalance, round, transaction } = write;
-    const idempotencyKey = requestKey(round.accountId, round.requestId);
-    const existingRoundId = this.#state.gameRoundIdByRequest.get(
-      idempotencyKey,
-    );
+    const { round, transaction } = write;
 
-    if (existingRoundId) {
-      const existingRound = this.#state.gameRoundsById.get(existingRoundId);
-
-      if (!existingRound) {
-        throw new Error("Dice idempotency index invariant failed");
-      }
-
-      return existingRound.game === "DICE" &&
-        round.game === "DICE" &&
-        existingRound.bet === round.bet &&
-        existingRound.prediction === round.prediction
-        ? { status: "replayed", round: copyGameRound(existingRound) }
-        : { status: "conflict" };
-    }
-
-    const account = this.#state.accountsById.get(round.accountId);
-
-    if (!account) {
-      throw new Error("Dice account invariant failed");
-    }
-
-    if (account.credits !== expectedBalance) {
-      return { status: "balance-changed" };
-    }
-
-    if (
-      this.#state.gameRoundsById.has(round.id) ||
-      this.#state.creditTransactionsById.has(transaction.id)
-    ) {
-      throw new Error("Generated Dice identifier collision");
-    }
-
-    const calculatedBalance = expectedBalance + transaction.delta;
-
-    if (
-      round.game !== "DICE" ||
-      transaction.reason !== DICE_ROUND_CREDIT_REASON ||
-      transaction.accountId !== account.id ||
-      transaction.accountId !== round.accountId ||
-      transaction.roundId !== round.id ||
-      round.transactionId !== transaction.id ||
-      round.netDelta !== transaction.delta ||
-      round.finalCredits !== transaction.resultingBalance ||
-      round.finalCredits !== calculatedBalance ||
-      round.createdAt !== transaction.createdAt ||
-      !Number.isSafeInteger(expectedBalance) ||
-      !Number.isSafeInteger(transaction.delta) ||
-      !Number.isSafeInteger(calculatedBalance) ||
-      calculatedBalance < 0
-    ) {
+    if (round.game !== "DICE" || transaction.reason !== DICE_ROUND_CREDIT_REASON) {
       throw new Error("Dice settlement invariant failed");
     }
 
-    const accountsById = new Map(this.#state.accountsById);
-    const creditTransactionsById = new Map(
-      this.#state.creditTransactionsById,
-    );
-    const gameRoundsById = new Map(this.#state.gameRoundsById);
-    const gameRoundIdByRequest = new Map(
-      this.#state.gameRoundIdByRequest,
-    );
+    return this.#commitGameRound(write, "Dice", (existing) => {
+      const incoming = round;
 
-    accountsById.set(account.id, {
-      ...account,
-      credits: calculatedBalance,
+      return (
+        existing.game === "DICE" &&
+        existing.bet === incoming.bet &&
+        existing.prediction === incoming.prediction
+      );
     });
-    creditTransactionsById.set(
-      transaction.id,
-      copyTransaction(transaction),
-    );
-    gameRoundsById.set(round.id, copyGameRound(round));
-    gameRoundIdByRequest.set(idempotencyKey, round.id);
-
-    this.#state = {
-      ...this.#state,
-      accountsById,
-      creditTransactionsById,
-      gameRoundsById,
-      gameRoundIdByRequest,
-    };
-
-    return { status: "created", round: copyGameRound(round) };
   }
 
   commitRouletteRound(write: RouletteRoundWrite): RouletteRoundCommitResult {
+    const { round, transaction } = write;
+
+    if (
+      round.game !== "ROULETTE" ||
+      transaction.reason !== ROULETTE_ROUND_CREDIT_REASON
+    ) {
+      throw new Error("Roulette settlement invariant failed");
+    }
+
+    return this.#commitGameRound(write, "Roulette", (existing) => {
+      const incoming = round;
+
+      return (
+        existing.game === "ROULETTE" &&
+        existing.bet === incoming.bet &&
+        existing.selection === incoming.selection
+      );
+    });
+  }
+
+  /**
+   * Shared atomic commit path reused by every game's settlement. Each game
+   * keeps its own public `commit<Game>Round` entry point, its own game-shape
+   * invariant check, and its own replay-match rule above; only the generic
+   * idempotency lookup, balance/identifier invariants, and Map writes live
+   * here once.
+   */
+  #commitGameRound(
+    write: {
+      readonly expectedBalance: number;
+      readonly round: GameRound;
+      readonly transaction: CreditTransaction;
+    },
+    gameLabel: string,
+    matchesForReplay: (existingRound: GameRound) => boolean,
+  ): GameRoundCommitStatus {
     const { expectedBalance, round, transaction } = write;
     const idempotencyKey = requestKey(round.accountId, round.requestId);
     const existingRoundId = this.#state.gameRoundIdByRequest.get(
@@ -354,13 +330,10 @@ export class InMemoryStore {
       const existingRound = this.#state.gameRoundsById.get(existingRoundId);
 
       if (!existingRound) {
-        throw new Error("Roulette idempotency index invariant failed");
+        throw new Error(`${gameLabel} idempotency index invariant failed`);
       }
 
-      return existingRound.game === "ROULETTE" &&
-        round.game === "ROULETTE" &&
-        existingRound.bet === round.bet &&
-        existingRound.selection === round.selection
+      return matchesForReplay(existingRound)
         ? { status: "replayed", round: copyGameRound(existingRound) }
         : { status: "conflict" };
     }
@@ -368,7 +341,7 @@ export class InMemoryStore {
     const account = this.#state.accountsById.get(round.accountId);
 
     if (!account) {
-      throw new Error("Roulette account invariant failed");
+      throw new Error(`${gameLabel} account invariant failed`);
     }
 
     if (account.credits !== expectedBalance) {
@@ -379,14 +352,12 @@ export class InMemoryStore {
       this.#state.gameRoundsById.has(round.id) ||
       this.#state.creditTransactionsById.has(transaction.id)
     ) {
-      throw new Error("Generated Roulette identifier collision");
+      throw new Error(`Generated ${gameLabel} identifier collision`);
     }
 
     const calculatedBalance = expectedBalance + transaction.delta;
 
     if (
-      round.game !== "ROULETTE" ||
-      transaction.reason !== ROULETTE_ROUND_CREDIT_REASON ||
       transaction.accountId !== account.id ||
       transaction.accountId !== round.accountId ||
       transaction.roundId !== round.id ||
@@ -400,7 +371,7 @@ export class InMemoryStore {
       !Number.isSafeInteger(calculatedBalance) ||
       calculatedBalance < 0
     ) {
-      throw new Error("Roulette settlement invariant failed");
+      throw new Error(`${gameLabel} settlement invariant failed`);
     }
 
     const accountsById = new Map(this.#state.accountsById);

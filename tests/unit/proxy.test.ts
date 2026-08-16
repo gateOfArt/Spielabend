@@ -4,7 +4,7 @@ import { config, proxy } from "@/proxy";
 import { SESSION_POLICY } from "@/server/auth/authentication.contract";
 
 describe("protected navigation proxy guard", () => {
-  it.each(["/lobby", "/dice", "/leaderboard"])(
+  it.each(["/lobby", "/dice", "/roulette", "/leaderboard"])(
     "redirects %s when the session cookie is absent",
     (path) => {
       const response = proxy(
@@ -22,6 +22,7 @@ describe("protected navigation proxy guard", () => {
     expect(config.matcher).toEqual([
       "/lobby/:path*",
       "/dice/:path*",
+      "/roulette/:path*",
       "/leaderboard/:path*",
     ]);
   });
